@@ -73,7 +73,7 @@ if (!is.null(params$act_file)) {
 log("[Step 1] Fetching Plants for Activity")
 
 all_acts <- strsplit(params$acts, "\\|")[[1]]
-chunk_size <- 100
+chunk_size <- 50
 act_chunks <- split(all_acts, ceiling(seq_along(all_acts) / chunk_size))
 
 cl <- makeCluster(workers)
