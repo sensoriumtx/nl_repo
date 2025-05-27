@@ -48,7 +48,7 @@ if (!is.null(params$act_file)) {
   if (!file.exists(params$act_file)) stop("Provided --act_file does not exist.")
   act_table <- read_csv(params$act_file, show_col_types = FALSE)
   names(act_table) <- tolower(names(act_table))
-  if (!any(c("terms", "Terms") %in% names(act_table))) stop("--act_file must contain a 'terms' or 'Terms' column")
+  if (!any(c("terms", "Terms","term","Term") %in% names(act_table))) stop("--act_file must contain a '(T)term' or '(T)terms' column")
   params$acts <- paste(act_table[[names(act_table)[tolower(names(act_table)) == "terms"]]], collapse = "|")
 } else if (is.null(params$acts)) {
   stop("You must provide either --acts or --act_file")
