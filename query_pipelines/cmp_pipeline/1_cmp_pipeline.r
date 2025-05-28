@@ -112,6 +112,10 @@ system(act_cmd)
 if (!file.exists(cmp_acts_file)) stop("Step 3 failed: cmp activities output not found.")
 log("[Step 3] Complete")
 
+
+### Add Direct References *********
+
+
 # ------------------------- Step 4: Pull Acts for PLN -------------------------
 log("[Step 4] Pulling activities associated with plants")
 
@@ -125,6 +129,14 @@ pln_act_cmd <- paste(
   "--plants", shQuote(plant_labels),
   "--out", shQuote(plant_acts_file)
 )
+
+### Add Direct References *********
+
+
+
+##### Should I enrich here? what to enrich? all cmp? all pln? panacea filter? p-value?
+
+# ------------------------- Step 5: Final Output -------------------------
 system(pln_act_cmd)
 if (!file.exists(plant_acts_file)) stop("Step 4 failed: plant activities output not found.")
 log("[Step 4] Complete")
