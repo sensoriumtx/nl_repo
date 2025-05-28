@@ -65,6 +65,7 @@ gather_terms <- function() {
 }
 
 terms_input <- gather_terms()
+cat("\U0001F50D Input terms:", paste(terms_input, collapse=", "), "\n")
 
 # Step 2: Normalize and resolve ?use URI directly
 normalize_term <- function(x) {
@@ -76,13 +77,16 @@ normalize_term <- function(x) {
 
 resolve_term_uris <- function(term) {
   term_clean <- normalize_term(term)
+  cat("\U0001F50D Resolving term:", term, "->", term_clean, "\n")
   q <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label "%s" }', term_clean))
+  cat("\U0001F4DD SPARQL exact query:\n", q, "\n")
   res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
 
   if (!is.null(res) && is.data.frame(res) && nrow(res) > 0 && !is.null(res$use[1])) return(res$use[1])
 
-  # Fallback fuzzy search if exact match fails
+  cat("\u26A0\ufe0f No exact match, trying fuzzy...\n")
   q_fuzzy <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label ?lbl FILTER(CONTAINS(LCASE(STR(?lbl)), "%s")) } LIMIT 1', tolower(term_clean)))
+  cat("\U0001F4DD SPARQL fuzzy query:\n", q_fuzzy, "\n")
   res_fuzzy <- tryCatch(SPARQL(endpoint, q_fuzzy, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
 
   if (!is.null(res_fuzzy) && is.data.frame(res_fuzzy) && nrow(res_fuzzy) > 0 && !is.null(res_fuzzy$use[1])) return(res_fuzzy$use[1])
@@ -94,7 +98,7 @@ term_map <- tibble(term = terms_input) %>%
 
 valid_terms <- term_map %>% filter(!is.na(use_uri))
 unmatched_terms <- setdiff(terms_input, valid_terms$term)
-if (length(unmatched_terms) > 0) message(paste0("\u26A0\uFE0F Unmatched terms: ", paste(unmatched_terms, collapse = "|")))
+if (length(unmatched_terms) > 0) message(paste0("\u26A0\ufe0f Unmatched terms: ", paste(unmatched_terms, collapse = "|")))
 
 # Step 3: Enrich from each resolved ?use
 if (nrow(valid_terms) == 0) stop("No valid compound or plant mappings found. Exiting.")
@@ -116,12 +120,14 @@ pull_enrichment <- function(uri) {
     }
   }', uri))
 
+  cat("\U0001F4DD Enrichment SPARQL query for:", uri, "\n", q, "\n")
   res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
 
   if (!is.null(res) && is.data.frame(res) && nrow(res) > 0) {
     res$use_uri <- uri
     return(as_tibble(res))
   } else {
+    cat("\u26A0\ufe0f No enrichment returned for:", uri, "\n")
     return(tibble())
   }
 }
@@ -130,5 +136,5 @@ results <- valid_terms$use_uri %>% map(pull_enrichment) %>% bind_rows()
 if (!is.null(results) && nrow(results) > 0) {
   write_csv(results, outFile)
 } else {
-  message("\u26A0\uFE0F No enrichment results returned")
+  message("\u26A0\ufe0f No enrichment results returned")
 }
