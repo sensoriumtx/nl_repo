@@ -67,13 +67,20 @@ gather_terms <- function() {
 terms_input <- gather_terms()
 
 # Step 2: Normalize and resolve ?use URI directly
-normalize_term <- function(x) str_to_lower(stri_trans_general(trimws(x), "Latin-ASCII"))
+normalize_term <- function(x) stri_trans_general(trimws(x), "Latin-ASCII")
 
 resolve_term_uris <- function(term) {
-  term_norm <- normalize_term(term)
-  q <- paste(sparql_prefix, sprintf('SELECT ?use ?label WHERE { ?use a sen:use; rdfs:label ?label . FILTER(LCASE(STR(?label)) = "%s") }', term_norm))
+  term_clean <- normalize_term(term)
+  q <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label "%s" }', term_clean))
   res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
+
   if (!is.null(res) && is.data.frame(res) && nrow(res) > 0 && !is.null(res$use[1])) return(res$use[1])
+
+  # Fallback fuzzy search if exact match fails
+  q_fuzzy <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label ?lbl FILTER(CONTAINS(LCASE(STR(?lbl)), "%s")) } LIMIT 1', tolower(term_clean)))
+  res_fuzzy <- tryCatch(SPARQL(endpoint, q_fuzzy, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
+
+  if (!is.null(res_fuzzy) && is.data.frame(res_fuzzy) && nrow(res_fuzzy) > 0 && !is.null(res_fuzzy$use[1])) return(res_fuzzy$use[1])
   return(NA_character_)
 }
 
