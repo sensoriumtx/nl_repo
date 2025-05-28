@@ -1,4 +1,9 @@
-# Unified Act/Use Label Enrichment Script
+# Unified Act/Use Label Enrichment Scriput
+
+# Pretty sure most of these uses are specific to plants, modify this to be plant based
+
+
+##
 suppressMessages(library(tidyverse))
 suppressMessages(library(stringi))
 suppressMessages(library(parallel))
