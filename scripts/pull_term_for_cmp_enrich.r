@@ -6,50 +6,44 @@ suppressMessages(source("scripts/common.r"))
 suppressMessages(source("scripts/SPARQL.R"))
 
 options(scipen = 100, digits = 4)
-args <- commandArgs(TRUE)
 
-endpoint <- endpoint_dev
-terms_raw <- NULL
-in_file <- NULL
-filter_out_file <- NULL
-outFile <- NULL
-ids <- NULL
-useTargets <- FALSE
-
-loop <- TRUE
-while (loop) {
-  if (args[1] == "--endpoint") {
-    if (args[2] == "dev") {
-      endpoint <- endpoint_dev
-    } else if (args[2] == "prod") {
-      endpoint <- endpoint_prod
+parseArgs <- function(args) {
+  out <- list()
+  i <- 1
+  while (i <= length(args)) {
+    arg <- args[i]
+    val <- if (i + 1 <= length(args)) args[i + 1] else NA
+    if (is.na(val)) stop(paste("Missing value for", arg))
+    if (arg == "--endpoint") {
+      out$endpoint <- if (val == "prod") endpoint_prod else endpoint_dev
+    } else if (arg == "--terms") {
+      out$terms_raw <- val
+    } else if (arg == "--in_file") {
+      out$in_file <- val
+    } else if (arg == "--filter_out_file") {
+      out$filter_out_file <- val
+    } else if (arg == "--compound") {
+      out$ids <- val
+    } else if (arg == "--out") {
+      out$outFile <- val
+    } else if (arg == "--use_targets") {
+      out$useTargets <- TRUE
+      i <- i - 1  # flag argument has no value
     }
+    i <- i + 2
   }
-  if (args[1] == "--terms") {
-    terms_raw <- args[2]
-  }
-  if (args[1] == "--in_file") {
-    in_file <- args[2]
-  }
-  if (args[1] == "--filter_out_file") {
-    filter_out_file <- args[2]
-  }
-  if (args[1] == "--compound") {
-    ids <- args[2]
-  }
-  if (args[1] == "--out") {
-    outFile <- args[2]
-  }
-  if (args[1] == "--use_targets") {
-    useTargets <- TRUE
-  }
-
-  if (length(args) > 1) {
-    args <- args[3:length(args)]
-  } else {
-    loop <- FALSE
-  }
+  return(out)
 }
+
+cli_args <- parseArgs(commandArgs(TRUE))
+
+endpoint <- cli_args$endpoint
+terms_raw <- cli_args$terms_raw
+in_file <- cli_args$in_file
+filter_out_file <- cli_args$filter_out_file
+outFile <- cli_args$outFile
+ids <- cli_args$ids
+useTargets <- ifelse(is.null(cli_args$useTargets), FALSE, TRUE)
 
 if (is.null(outFile)) {
   stop("--out must be specified")
