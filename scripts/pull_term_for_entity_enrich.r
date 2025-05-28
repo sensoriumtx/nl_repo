@@ -71,15 +71,39 @@ normalize_term <- function(x) str_to_lower(stri_trans_general(trimws(x), "Latin-
 
 resolve_term_uris <- function(term) {
   term_norm <- normalize_term(term)
-  q <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label ?label . FILTER(LCASE(STR(?label)) = "%s") }', term_norm))
+  q <- paste(sparql_prefix, sprintf('SELECT ?use ?label WHERE { ?use a sen:use; rdfs:label ?label . FILTER(LCASE(STR(?label)) = "%s") }', term_norm))
   res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
   if (!is.null(res) && is.data.frame(res) && nrow(res) > 0 && !is.null(res$use[1])) return(res$use[1])
   return(NA_character_)
 }
 
 term_map <- tibble(term = terms_input) %>%
-  mutate(use_uri = suppressWarnings(unlist(mclapply(term, resolve_term_uris, mc.cores = 1)))) %>%
-  filter(!is.na(use_uri))
+  mutate(use_uri = suppressWarnings(map_chr(term, resolve_term_uris)))
 
-unmatched_terms <- setdiff(terms_input, term_map$term)
+valid_terms <- term_map %>% filter(!is.na(use_uri))
+unmatched_terms <- setdiff(terms_input, valid_terms$term)
 if (length(unmatched_terms) > 0) message(paste0("\u26A0\uFE0F Unmatched terms: ", paste(unmatched_terms, collapse = "|")))
+
+# Step 3: Enrich from each resolved ?use
+if (nrow(valid_terms) == 0) stop("No valid compound or plant mappings found. Exiting.")
+
+pull_enrichment <- function(uri) {
+  q <- paste(sparql_prefix, sprintf('SELECT DISTINCT ?cmp ?cmp_label ?pln ?pln_label ?act_label WHERE {
+    BIND(<%s> AS ?use)
+    OPTIONAL {
+      ?cmp ^sen:hasCompound|(^sen:hasCompound/(sen:targetProtein|sen:targetGene)/^sen:hasTarget) ?use .
+      ?cmp (sen:lcLabel|sen:lcAltLabel)|(sen:maps_to/(sen:lcLabel|sen:lcAltLabel)) ?cmp_label .
+    }
+    OPTIONAL {
+      ?use sen:hasActivity/rdfs:label ?act_label .
+      ?use sen:hasTaxon ?pln .
+      ?use sen:hasTaxon/rdfs:label ?pln_label .
+    }
+  }', uri))
+  res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
+  if (!is.null(res) && nrow(res) > 0) res$use_uri <- uri
+  return(res)
+}
+
+results <- valid_terms$use_uri %>% map(pull_enrichment) %>% bind_rows()
+if (!is.null(results) && nrow(results) > 0) write_csv(results, outFile) else message("\u26A0\uFE0F No enrichment results returned")
