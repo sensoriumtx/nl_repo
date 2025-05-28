@@ -72,13 +72,13 @@ normalize_term <- function(x) str_to_lower(stri_trans_general(trimws(x), "Latin-
 resolve_term_uris <- function(term) {
   term_norm <- normalize_term(term)
   q <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label ?label . FILTER(LCASE(STR(?label)) = "%s") }', term_norm))
-  res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) data.frame())
+  res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
   if (!is.null(res) && is.data.frame(res) && nrow(res) > 0 && !is.null(res$use[1])) return(res$use[1])
-  return(NA)
+  return(NA_character_)
 }
 
 term_map <- tibble(term = terms_input) %>%
-  mutate(use_uri = unlist(mclapply(term, resolve_term_uris, mc.cores = 1))) %>%
+  mutate(use_uri = suppressWarnings(unlist(mclapply(term, resolve_term_uris, mc.cores = 1)))) %>%
   filter(!is.na(use_uri))
 
 unmatched_terms <- setdiff(terms_input, term_map$term)
