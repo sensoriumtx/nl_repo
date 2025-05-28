@@ -67,7 +67,12 @@ gather_terms <- function() {
 terms_input <- gather_terms()
 
 # Step 2: Normalize and resolve ?use URI directly
-normalize_term <- function(x) stri_trans_general(trimws(x), "Latin-ASCII")
+normalize_term <- function(x) {
+  x %>%
+    stri_trans_general("Latin-ASCII") %>%
+    str_replace_all("[\u00a0\r\n\t]", " ") %>%
+    str_squish()
+}
 
 resolve_term_uris <- function(term) {
   term_clean <- normalize_term(term)
