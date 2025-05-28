@@ -88,16 +88,19 @@ if (length(unmatched_terms) > 0) message(paste0("\u26A0\uFE0F Unmatched terms: "
 if (nrow(valid_terms) == 0) stop("No valid compound or plant mappings found. Exiting.")
 
 pull_enrichment <- function(uri) {
-  q <- paste(sparql_prefix, sprintf('SELECT DISTINCT ?cmp ?cmp_label ?pln ?pln_label ?act_label WHERE {
+  q <- paste(sparql_prefix, sprintf('SELECT DISTINCT ?cmp ?cmp_label ?pln ?pln_label ?act_label ?use ?use_label WHERE {
     BIND(<%s> AS ?use)
+    ?use rdfs:label ?use_label .
     OPTIONAL {
       ?cmp ^sen:hasCompound|(^sen:hasCompound/(sen:targetProtein|sen:targetGene)/^sen:hasTarget) ?use .
       ?cmp (sen:lcLabel|sen:lcAltLabel)|(sen:maps_to/(sen:lcLabel|sen:lcAltLabel)) ?cmp_label .
     }
     OPTIONAL {
       ?use sen:hasActivity/rdfs:label ?act_label .
+    }
+    OPTIONAL {
       ?use sen:hasTaxon ?pln .
-      ?use sen:hasTaxon/rdfs:label ?pln_label .
+      ?pln rdfs:label ?pln_label .
     }
   }', uri))
   res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
