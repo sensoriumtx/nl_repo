@@ -103,10 +103,20 @@ pull_enrichment <- function(uri) {
       ?pln rdfs:label ?pln_label .
     }
   }', uri))
+
   res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
-  if (!is.null(res) && nrow(res) > 0) res$use_uri <- uri
-  return(res)
+
+  if (!is.null(res) && is.data.frame(res) && nrow(res) > 0) {
+    res$use_uri <- uri
+    return(as_tibble(res))
+  } else {
+    return(tibble())
+  }
 }
 
 results <- valid_terms$use_uri %>% map(pull_enrichment) %>% bind_rows()
-if (!is.null(results) && nrow(results) > 0) write_csv(results, outFile) else message("\u26A0\uFE0F No enrichment results returned")
+if (!is.null(results) && nrow(results) > 0) {
+  write_csv(results, outFile)
+} else {
+  message("\u26A0\uFE0F No enrichment results returned")
+}
