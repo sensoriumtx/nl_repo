@@ -26,6 +26,8 @@ parseArgs <- function(args) {
       out$ids <- val
     } else if (arg == "--out") {
       out$outFile <- val
+    } else if (arg == "--raw_out") {
+      out$rawOut <- val
     } else if (arg == "--use_targets") {
       out$useTargets <- TRUE
       i <- i - 1
@@ -42,6 +44,7 @@ terms_raw <- cli_args$terms_raw
 in_file <- cli_args$in_file
 filter_out_file <- cli_args$filter_out_file
 outFile <- cli_args$outFile
+rawOut <- cli_args$rawOut
 ids <- cli_args$ids
 useTargets <- ifelse(is.null(cli_args$useTargets), FALSE, TRUE)
 
@@ -63,10 +66,13 @@ gather_terms <- function() {
 
 terms_input <- gather_terms()
 
-# Step 2: Infer term types
+# Step 2: Infer term types with normalization
+normalize_term <- function(x) str_to_lower(stri_trans_general(trimws(x), "Latin-ASCII"))
+
 infer_term_type <- function(term) {
-  q_act <- paste(sparql_prefix, sprintf('SELECT ?label WHERE { ?x a sen:activity; sen:lcLabel "%s" } LIMIT 1', term))
-  q_use <- paste(sparql_prefix, sprintf('SELECT ?label WHERE { ?x a sen:use; rdfs:label "%s" } LIMIT 1', term))
+  term_norm <- normalize_term(term)
+  q_act <- paste(sparql_prefix, sprintf('SELECT ?label WHERE { ?x a sen:activity; sen:lcLabel ?label . FILTER(LCASE(STR(?label)) = "%s") } LIMIT 1', term_norm))
+  q_use <- paste(sparql_prefix, sprintf('SELECT ?label WHERE { ?x a sen:use; rdfs:label ?label . FILTER(LCASE(STR(?label)) = "%s") } LIMIT 1', term_norm))
   is_act <- nrow(SPARQL(endpoint, q_act, ns=prefix, extra=query_options, format='json')$results) > 0
   is_use <- nrow(SPARQL(endpoint, q_use, ns=prefix, extra=query_options, format='json')$results) > 0
   if (is_act) return("act")
@@ -82,20 +88,8 @@ unmatched_terms <- setdiff(terms_input, term_map$term)
 if (length(unmatched_terms) > 0) message(paste0("\u26A0\uFE0F Unmatched terms: ", paste(unmatched_terms, collapse = "|")))
 
 # Step 3: Get cmp and pln mappings
-
 get_compounds_from_terms <- function(term, type) {
-  q <- if (type == "act") paste0(sparql_prefix, sprintf('
-    SELECT DISTINCT ?cmp ?cmp_label WHERE {
-      ?use sen:hasActivity ?act .
-      ?act sen:lcLabel "%s" .
-      ?cmp (^sen:hasCompound|(sen:maps_to+/^sen:hasCompound)) ?use .
-      ?cmp rdfs:label ?cmp_label
-    }', term)) else paste0(sparql_prefix, sprintf('
-    SELECT DISTINCT ?cmp ?cmp_label WHERE {
-      ?use a sen:use ; rdfs:label "%s" .
-      ?cmp (^sen:hasCompound|(sen:maps_to+/^sen:hasCompound)) ?use .
-      ?cmp rdfs:label ?cmp_label
-    }', term))
+  q <- if (type == "act") paste0(sparql_prefix, sprintf('SELECT DISTINCT ?cmp ?cmp_label WHERE { ?use sen:hasActivity ?act . ?act sen:lcLabel ?l . FILTER(LCASE(STR(?l)) = "', normalize_term(term), '") ?cmp (^sen:hasCompound|(sen:maps_to+/^sen:hasCompound)) ?use . ?cmp rdfs:label ?cmp_label }')) else paste0(sparql_prefix, sprintf('SELECT DISTINCT ?cmp ?cmp_label WHERE { ?use a sen:use ; rdfs:label ?l . FILTER(LCASE(STR(?l)) = "', normalize_term(term), '") ?cmp (^sen:hasCompound|(sen:maps_to+/^sen:hasCompound)) ?use . ?cmp rdfs:label ?cmp_label }'))
   df <- SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results
   df$term <- term
   df$term_type <- type
@@ -103,18 +97,7 @@ get_compounds_from_terms <- function(term, type) {
 }
 
 get_plants_from_terms <- function(term, type) {
-  q <- if (type == "act") paste0(sparql_prefix, sprintf('
-    SELECT DISTINCT ?pln ?pln_label WHERE {
-      ?use sen:hasActivity ?act .
-      ?act sen:lcLabel "%s" .
-      ?pln ^sen:hasTaxon ?use .
-      ?pln rdfs:label ?pln_label
-    }', term)) else paste0(sparql_prefix, sprintf('
-    SELECT DISTINCT ?pln ?pln_label WHERE {
-      ?use a sen:use ; rdfs:label "%s" .
-      ?pln ^sen:hasTaxon ?use .
-      ?pln rdfs:label ?pln_label
-    }', term))
+  q <- if (type == "act") paste0(sparql_prefix, sprintf('SELECT DISTINCT ?pln ?pln_label WHERE { ?use sen:hasActivity ?act . ?act sen:lcLabel ?l . FILTER(LCASE(STR(?l)) = "', normalize_term(term), '") ?pln ^sen:hasTaxon ?use . ?pln rdfs:label ?pln_label }')) else paste0(sparql_prefix, sprintf('SELECT DISTINCT ?pln ?pln_label WHERE { ?use a sen:use ; rdfs:label ?l . FILTER(LCASE(STR(?l)) = "', normalize_term(term), '") ?pln ^sen:hasTaxon ?use . ?pln rdfs:label ?pln_label }'))
   df <- SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results
   df$term <- term
   df$term_type <- type
@@ -135,6 +118,11 @@ plant_term_links <- if (nrow(term_map) > 0) {
   }, mc.cores = 10))
 } else {
   tibble()
+}
+
+if (!is.null(rawOut)) {
+  write_csv(compound_term_links, paste0(rawOut, "_compound_term_links.csv"))
+  write_csv(plant_term_links, paste0(rawOut, "_plant_term_links.csv"))
 }
 
 if (nrow(compound_term_links) == 0 && nrow(plant_term_links) == 0) {
