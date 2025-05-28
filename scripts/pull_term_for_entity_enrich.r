@@ -72,9 +72,9 @@ normalize_term <- function(x) str_to_lower(stri_trans_general(trimws(x), "Latin-
 resolve_term_uris <- function(term) {
   term_norm <- normalize_term(term)
   q <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label ?label . FILTER(LCASE(STR(?label)) = "%s") }', term_norm))
-  res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
-  if (is.null(res) || nrow(res) == 0) return(NA)
-  return(res$use[1])
+  res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) data.frame())
+  if (!is.null(res) && is.data.frame(res) && nrow(res) > 0 && !is.null(res$use[1])) return(res$use[1])
+  return(NA)
 }
 
 term_map <- tibble(term = terms_input) %>%
