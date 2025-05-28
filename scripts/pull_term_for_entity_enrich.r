@@ -1,6 +1,7 @@
 # Unified Act/Use Label Enrichment Script for Compounds and Plants
-depends <- c("tidyverse", "stringi", "parallel")
-lapply(depends, function(pkg) suppressMessages(library(pkg, character.only = TRUE)))
+suppressMessages(library(tidyverse))
+suppressMessages(library(stringi))
+suppressMessages(library(parallel))
 suppressMessages(source("scripts/common.r"))
 suppressMessages(source("scripts/SPARQL.R"))
 
@@ -83,22 +84,18 @@ if (length(unmatched_terms) > 0) message(paste0("\u26A0\uFE0F Unmatched terms: "
 # Step 3: Get cmp and pln mappings
 
 get_compounds_from_terms <- function(term, type) {
-  if (type == "act") {
-    q <- paste0(sparql_prefix, sprintf('
-      SELECT DISTINCT ?cmp ?cmp_label WHERE {
-        ?use sen:hasActivity ?act .
-        ?act sen:lcLabel "%s" .
-        ?cmp (^sen:hasCompound|(sen:maps_to+/^sen:hasCompound)) ?use .
-        ?cmp rdfs:label ?cmp_label
-      }', term))
-  } else {
-    q <- paste0(sparql_prefix, sprintf('
-      SELECT DISTINCT ?cmp ?cmp_label WHERE {
-        ?use a sen:use ; rdfs:label "%s" .
-        ?cmp (^sen:hasCompound|(sen:maps_to+/^sen:hasCompound)) ?use .
-        ?cmp rdfs:label ?cmp_label
-      }', term))
-  }
+  q <- if (type == "act") paste0(sparql_prefix, sprintf('
+    SELECT DISTINCT ?cmp ?cmp_label WHERE {
+      ?use sen:hasActivity ?act .
+      ?act sen:lcLabel "%s" .
+      ?cmp (^sen:hasCompound|(sen:maps_to+/^sen:hasCompound)) ?use .
+      ?cmp rdfs:label ?cmp_label
+    }', term)) else paste0(sparql_prefix, sprintf('
+    SELECT DISTINCT ?cmp ?cmp_label WHERE {
+      ?use a sen:use ; rdfs:label "%s" .
+      ?cmp (^sen:hasCompound|(sen:maps_to+/^sen:hasCompound)) ?use .
+      ?cmp rdfs:label ?cmp_label
+    }', term))
   df <- SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results
   df$term <- term
   df$term_type <- type
@@ -106,59 +103,65 @@ get_compounds_from_terms <- function(term, type) {
 }
 
 get_plants_from_terms <- function(term, type) {
-  if (type == "act") {
-    q <- paste0(sparql_prefix, sprintf('
-      SELECT DISTINCT ?pln ?pln_label WHERE {
-        ?use sen:hasActivity ?act .
-        ?act sen:lcLabel "%s" .
-        ?pln ^sen:hasTaxon ?use .
-        ?pln rdfs:label ?pln_label
-      }', term))
-  } else {
-    q <- paste0(sparql_prefix, sprintf('
-      SELECT DISTINCT ?pln ?pln_label WHERE {
-        ?use a sen:use ; rdfs:label "%s" .
-        ?pln ^sen:hasTaxon ?use .
-        ?pln rdfs:label ?pln_label
-      }', term))
-  }
+  q <- if (type == "act") paste0(sparql_prefix, sprintf('
+    SELECT DISTINCT ?pln ?pln_label WHERE {
+      ?use sen:hasActivity ?act .
+      ?act sen:lcLabel "%s" .
+      ?pln ^sen:hasTaxon ?use .
+      ?pln rdfs:label ?pln_label
+    }', term)) else paste0(sparql_prefix, sprintf('
+    SELECT DISTINCT ?pln ?pln_label WHERE {
+      ?use a sen:use ; rdfs:label "%s" .
+      ?pln ^sen:hasTaxon ?use .
+      ?pln rdfs:label ?pln_label
+    }', term))
   df <- SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results
   df$term <- term
   df$term_type <- type
   return(df)
 }
 
-compound_term_links <- bind_rows(mclapply(1:nrow(term_map), function(i) {
-  get_compounds_from_terms(term_map$term[i], term_map$term_type[i])
-}, mc.cores = 10))
+compound_term_links <- if (nrow(term_map) > 0) {
+  bind_rows(mclapply(1:nrow(term_map), function(i) {
+    get_compounds_from_terms(term_map$term[i], term_map$term_type[i])
+  }, mc.cores = 10))
+} else {
+  tibble()
+}
 
-plant_term_links <- bind_rows(mclapply(1:nrow(term_map), function(i) {
-  get_plants_from_terms(term_map$term[i], term_map$term_type[i])
-}, mc.cores = 10))
+plant_term_links <- if (nrow(term_map) > 0) {
+  bind_rows(mclapply(1:nrow(term_map), function(i) {
+    get_plants_from_terms(term_map$term[i], term_map$term_type[i])
+  }, mc.cores = 10))
+} else {
+  tibble()
+}
+
+if (nrow(compound_term_links) == 0 && nrow(plant_term_links) == 0) {
+  message("No valid compound or plant mappings found. Exiting.")
+  quit("no", 0)
+}
 
 # Step 4: Calculate enrichment stats for cmp and pln
 message("Calculating enrichment statistics...")
 
-cmp_counts <- compound_term_links %>% group_by(term, term_type, cmp) %>% summarise(count = n(), .groups = 'drop')
-pln_counts <- plant_term_links %>% group_by(term, term_type, pln) %>% summarise(count = n(), .groups = 'drop')
+cmp_counts <- compound_term_links %>% group_by(term, term_type, cmp = cmp) %>% summarise(count = n(), .groups = 'drop')
+pln_counts <- plant_term_links %>% group_by(term, term_type, pln = pln) %>% summarise(count = n(), .groups = 'drop')
 
-total_cmp_q <- paste0(sparql_prefix, 'SELECT (COUNT(DISTINCT ?cmp) as ?count) WHERE { ?cmp a sen:compound }')
-total_cmp <- as.integer(SPARQL(endpoint, total_cmp_q, ns=prefix, extra=query_options)$results$count[1])
-
-total_pln_q <- paste0(sparql_prefix, 'SELECT (COUNT(DISTINCT ?pln) as ?count) WHERE { ?pln a sen:taxon }')
-total_pln <- as.integer(SPARQL(endpoint, total_pln_q, ns=prefix, extra=query_options)$results$count[1])
+total_cmp <- as.integer(SPARQL(endpoint, paste0(sparql_prefix, 'SELECT (COUNT(DISTINCT ?cmp) as ?count) WHERE { ?cmp a sen:compound }'), ns=prefix, extra=query_options)$results$count[1])
+total_pln <- as.integer(SPARQL(endpoint, paste0(sparql_prefix, 'SELECT (COUNT(DISTINCT ?pln) as ?count) WHERE { ?pln a sen:taxon }'), ns=prefix, extra=query_options)$results$count[1])
 
 cmp_enrich <- cmp_counts %>%
   group_by(term, term_type) %>%
   summarise(n = n(), pval = phyper(n() - 1, n(), total_cmp - n(), total_cmp, lower.tail = FALSE)) %>%
   ungroup %>%
-  mutate(padj = p.adjust(pval, method = "fdr"), type = "compound")
+  mutate(padj = p.adjust(pval, method = "fdr"), entity_type = "compound")
 
 pln_enrich <- pln_counts %>%
   group_by(term, term_type) %>%
   summarise(n = n(), pval = phyper(n() - 1, n(), total_pln - n(), total_pln, lower.tail = FALSE)) %>%
   ungroup %>%
-  mutate(padj = p.adjust(pval, method = "fdr"), type = "plant")
+  mutate(padj = p.adjust(pval, method = "fdr"), entity_type = "plant")
 
 final <- bind_rows(cmp_enrich, pln_enrich)
 
