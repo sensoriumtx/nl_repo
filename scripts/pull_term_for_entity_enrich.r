@@ -66,28 +66,20 @@ gather_terms <- function() {
 
 terms_input <- gather_terms()
 
-# Step 2: Infer term types with normalization
+# Step 2: Normalize and resolve ?use URI directly
 normalize_term <- function(x) str_to_lower(stri_trans_general(trimws(x), "Latin-ASCII"))
 
-infer_term_type <- function(term) {
+resolve_term_uris <- function(term) {
   term_norm <- normalize_term(term)
-  safe_sparql_check <- function(q) {
-    res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
-    if (is.null(res) || !is.data.frame(res)) return(FALSE)
-    nrow(res) > 0
-  }
-  q_act <- paste(sparql_prefix, sprintf('SELECT ?label WHERE { ?x a sen:activity; sen:lcLabel ?label . FILTER(LCASE(STR(?label)) = "%s") } LIMIT 1', term_norm))
-  q_use <- paste(sparql_prefix, sprintf('SELECT ?label WHERE { ?x a sen:use; rdfs:label ?label . FILTER(LCASE(STR(?label)) = "%s") } LIMIT 1', term_norm))
-  is_act <- safe_sparql_check(q_act)
-  is_use <- safe_sparql_check(q_use)
-  if (is_act) return("act")
-  if (is_use) return("use")
-  return(NA)
+  q <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label ?label . FILTER(LCASE(STR(?label)) = "%s") }', term_norm))
+  res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
+  if (is.null(res) || nrow(res) == 0) return(NA)
+  return(res$use[1])
 }
 
 term_map <- tibble(term = terms_input) %>%
-  mutate(term_type = unlist(mclapply(term, infer_term_type, mc.cores = 1))) %>%
-  filter(!is.na(term_type))
+  mutate(use_uri = unlist(mclapply(term, resolve_term_uris, mc.cores = 1))) %>%
+  filter(!is.na(use_uri))
 
 unmatched_terms <- setdiff(terms_input, term_map$term)
 if (length(unmatched_terms) > 0) message(paste0("\u26A0\uFE0F Unmatched terms: ", paste(unmatched_terms, collapse = "|")))
