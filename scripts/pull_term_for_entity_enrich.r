@@ -78,15 +78,17 @@ normalize_term <- function(x) {
 resolve_term_uris <- function(term) {
   term_clean <- normalize_term(term)
   cat("\U0001F50D Resolving term:", term, "->", term_clean, "\n")
-  q <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label "%s" }', term_clean))
-  cat("\U0001F4DD SPARQL exact query:\n", q, "\n")
+  cat("\U0001F4DD SPARQL exact query string comparison:\n")
+  q <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label ?lbl FILTER(STR(?lbl) = "%s") }', term_clean))
+  cat(q, "\n")
   res <- tryCatch(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
 
   if (!is.null(res) && is.data.frame(res) && nrow(res) > 0 && !is.null(res$use[1])) return(res$use[1])
 
   cat("\u26A0\ufe0f No exact match, trying fuzzy...\n")
-  q_fuzzy <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label ?lbl FILTER(CONTAINS(LCASE(STR(?lbl)), "%s")) } LIMIT 1', tolower(term_clean)))
-  cat("\U0001F4DD SPARQL fuzzy query:\n", q_fuzzy, "\n")
+  q_fuzzy <- paste(sparql_prefix, sprintf('SELECT ?use WHERE { ?use a sen:use; rdfs:label ?lbl FILTER(CONTAINS(LCASE(STR(?lbl)), "%s")) }', tolower(term_clean)))
+  cat("\U0001F4DD SPARQL fuzzy query:\n")
+  cat(q_fuzzy, "\n")
   res_fuzzy <- tryCatch(SPARQL(endpoint, q_fuzzy, ns=prefix, extra=query_options, format='json')$results, error = function(e) NULL)
 
   if (!is.null(res_fuzzy) && is.data.frame(res_fuzzy) && nrow(res_fuzzy) > 0 && !is.null(res_fuzzy$use[1])) return(res_fuzzy$use[1])
