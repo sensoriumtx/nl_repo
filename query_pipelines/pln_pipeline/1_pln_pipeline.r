@@ -11,7 +11,7 @@ args <- commandArgs(TRUE)
 # ------------------ Argument Parsing ------------------
 endpoint <- "dev"
 ids <- NULL
-outdir <- NULL
+outFile <- NULL
 filter_out_act <- NULL
 
 while (length(args) > 0) {
@@ -21,8 +21,8 @@ while (length(args) > 0) {
   } else if (args[1] == "--plants") {
     ids <- args[2]
     args <- args[-c(1, 2)]
-  } else if (args[1] == "--outdir") {
-    outdir <- args[2]
+  } else if (args[1] == "--out") {
+    outFile <- args[2]
     args <- args[-c(1, 2)]
   } else if (args[1] == "--filter_out_act") {
     filter_out_act <- args[2]
@@ -32,10 +32,11 @@ while (length(args) > 0) {
   }
 }
 
-if (is.null(ids) || is.null(outdir)) {
-  stop("Both --plants and --outdir must be provided.")
+if (is.null(ids) || is.null(outFile)) {
+  stop("Both --plants and --out must be provided.")
 }
-dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+
+dir.create(dirname(outFile), recursive = TRUE, showWarnings = FALSE)
 
 # ------------------ Step 1 ------------------
 message("[Step 1] Using provided plant URIs (no resolution)")
@@ -49,12 +50,11 @@ cmp_cmd <- paste(
   "Rscript scripts/pull_cmp_for_pln.r",
   "--endpoint", endpoint,
   "--plants", shQuote(pln_ids),
-  "--outdir", shQuote(outdir)
+  "--out", shQuote(outFile)
 )
 system(cmp_cmd)
 
-cmp_outfile <- file.path(outdir, "step2_cmp_for_plants.csv")
-if (!file.exists(cmp_outfile)) {
+if (!file.exists(outFile)) {
   warning("Step 2 failed: compound file not found")
 } else {
   message("✓ Compounds successfully retrieved")
@@ -62,7 +62,7 @@ if (!file.exists(cmp_outfile)) {
 
 # ------------------ Step 3: Pull Activities for Plants ------------------
 message("[Step 3] Pulling activities associated with plants")
-acts_outfile <- file.path(outdir, "step3_acts_for_pln.csv")
+acts_outfile <- file.path(dirname(outFile), "step3_acts_for_pln.csv")
 acts_cmd <- paste(
   "Rscript scripts/pull_act_for_plant_enrich.r",
   "--endpoint", endpoint,
@@ -82,9 +82,9 @@ if (!file.exists(acts_outfile)) {
 
 # ------------------ Step 4: Pull Activities for Compounds ------------------
 message("[Step 4] Pulling activities associated with compounds")
-if (file.exists(cmp_outfile)) {
+if (file.exists(outFile)) {
   cmp_df <- tryCatch({
-    read_csv(cmp_outfile, show_col_types = FALSE)
+    read_csv(outFile, show_col_types = FALSE)
   }, error = function(e) {
     warning("Failed to read compound file: ", e$message)
     return(NULL)
@@ -92,7 +92,7 @@ if (file.exists(cmp_outfile)) {
 
   if (!is.null(cmp_df) && "cmp" %in% names(cmp_df)) {
     cmp_ids <- cmp_df$cmp %>% unique() %>% paste(collapse = "|")
-    cmp_acts_outfile <- file.path(outdir, "step4_acts_for_cmp.csv")
+    cmp_acts_outfile <- file.path(dirname(outFile), "step4_acts_for_cmp.csv")
 
     cmp_acts_cmd <- paste(
       "Rscript scripts/pull_acts_for_cmp_id.r",
@@ -113,4 +113,4 @@ if (file.exists(cmp_outfile)) {
   warning("Compound file missing. Skipping Step 4.")
 }
 
-message("[Pipeline] Execution complete. All outputs saved in:\n", outdir)
+message("[Pipeline] Execution complete. All outputs saved in:", dirname(outFile))
