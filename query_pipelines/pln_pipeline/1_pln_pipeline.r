@@ -9,8 +9,8 @@ options(scipen = 100, digits = 4)
 args <- commandArgs(TRUE)
 
 # ------------------ Argument Defaults ------------------
+endpoint <- "dev"
 ids <- NULL
-endpoint <- NULL
 outdir <- NULL
 loop <- TRUE
 
@@ -20,13 +20,9 @@ while (loop) {
     if (args[2] == "dev") {
       endpoint <- endpoint_dev
     }
-  }
-
-  if (args[1] == "--plants") {
+  } else if (args[1] == "--plants") {
     ids <- args[2]
-  }
-
-  if (args[1] == "--outdir") {
+  } else if (args[1] == "--outdir") {
     outdir <- args[2]
   }
 
@@ -41,56 +37,35 @@ if (is.null(ids) || is.null(outdir)) {
   stop("Both --plants and --outdir must be provided.")
 }
 
-# Construct output path
-outFile <- file.path(outdir, "step2_cmp_for_plants.csv")
-dir.create(dirname(outFile), recursive = TRUE, showWarnings = FALSE)
+dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
 
-# ------------------ SPARQL: Get PLN Metadata ------------------
-log("[Step 1] Using provided plant URIs (no resolution)")
+# ------------------ Step 1: Accept plant URIs ------------------
+message("[Step 1] Using provided plant URIs (no resolution)")
 
-plant_input <- NULL
-if (!is.null(params$plants)) {
-  plant_input <- str_split(params$plants, "\\|")[[1]] %>% unique()
-} else if (!is.null(params$in_file)) {
-  df <- read_csv(params$in_file, show_col_types = FALSE)
-  cols <- tolower(names(df))
-  key_col <- intersect(cols, c("pln", "plant", "plants"))[1]
-  if (is.null(key_col)) stop("No usable column found in input file")
-  plant_input <- df[[key_col]] %>% unique() %>% na.omit()
-} else {
-  stop("You must provide either --plants or --in_file")
-}
-
-pln_ids <- plant_input %>% unique() %>% paste(collapse = "|")
+plant_input <- str_split(ids, "\\|")[[1]] %>% unique()
+pln_ids <- plant_input %>% paste(collapse = "|")
 if (is.null(pln_ids) || pln_ids == "") stop("No valid PLN identifiers found")
 
-
-
-# ------------------ SPARQL: Get Compounds for Plants ------------------
-log("[Step 2] Pulling compounds associated with plants")
+# ------------------ Step 2: Pull Compounds ------------------
+message("[Step 2] Pulling compounds associated with plants")
 
 cmp_cmd <- paste(
   "Rscript scripts/pull_cmp_for_pln.r",
-  "--endpoint", params$endpoint,
+  "--endpoint", endpoint,
   "--plants", shQuote(pln_ids),
-  "--outdir", shQuote(params$outdir)
+  "--outdir", shQuote(outdir)
 )
 system(cmp_cmd)
 
+# ------------------ Step 3: Pull Activities ------------------
+message("[Step 3] Pulling activities associated with plants")
 
-# ------------------ Safe Join ------------------
-if ("pln" %in% names(combined) && "pln" %in% names(df.id)) {
-  message("Joining plant metadata with compound results")
-  combined <- combined %>%
-    left_join(df.id, by = "pln")
-} else {
-  warning("Join skipped: 'pln' column missing in one or both data frames.")
-}
+act_cmd <- paste(
+  "Rscript scripts/pull_acts_for_plant_enrich.r",
+  "--endpoint", endpoint,
+  "--plants", shQuote(pln_ids),
+  "--out", file.path(outdir, "step3_acts_for_pln.csv")
+)
+system(act_cmd)
 
-# ------------------ Save Output ------------------
-if (nrow(combined) == 0) {
-  message("No compound mappings found.")
-} else {
-  message(paste("Total rows retrieved:", nrow(combined)))
-}
-write_csv(combined, outFile)
+message("[Pipeline] Execution complete.")
