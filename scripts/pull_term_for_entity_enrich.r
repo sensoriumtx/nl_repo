@@ -108,6 +108,7 @@ if (nrow(valid_terms) == 0) stop("No valid compound or plant mappings found. Exi
 pull_enrichment <- function(uri) {
   q <- paste(sparql_prefix, sprintf('SELECT DISTINCT ?cmp ?cmp_label ?pln ?pln_label ?act_label ?use ?use_label WHERE {
     BIND(<%s> AS ?use)
+    ?use a sen:use .
     ?use rdfs:label ?use_label .
     OPTIONAL {
       ?cmp ^sen:hasCompound|(^sen:hasCompound/(sen:targetProtein|sen:targetGene)/^sen:hasTarget) ?use .
