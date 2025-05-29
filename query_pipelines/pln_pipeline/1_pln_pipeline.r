@@ -46,66 +46,37 @@ outFile <- file.path(outdir, "step2_cmp_for_plants.csv")
 dir.create(dirname(outFile), recursive = TRUE, showWarnings = FALSE)
 
 # ------------------ SPARQL: Get PLN Metadata ------------------
-message("Verifying provided plant URIs...")
+log("[Step 1] Using provided plant URIs (no resolution)")
 
-pln_uris <- trimws(unlist(str_split(ids, "\\|")))
-quoted_uris <- paste(pln_uris, collapse = " ")
-
-plant_query <- paste(sparql_prefix, paste0(
-  "select distinct ?pln ?pln_label ?taxid ?rel where {
-    values ?pln { ", quoted_uris, " }
-    ?pln rdf:type sen:taxon .
-    OPTIONAL { ?pln rdfs:label ?pln_label }
-    OPTIONAL {
-      values ?rel { rdfs:subClassOf sen:has_taxid }
-      ?pln ?rel ?taxid .
-      ?taxid ncbit:has_rank ?rank
-    }
-  }"
-))
-
-df.id <- SPARQL(endpoint, plant_query, ns = prefix, extra = query_options, format = "json")$results
-if (nrow(df.id) == 0) {
-  warning("No plants found. Exiting with empty result.")
-  write_csv(tibble(), outFile)
-  quit("no", 0)
+plant_input <- NULL
+if (!is.null(params$plants)) {
+  plant_input <- str_split(params$plants, "\\|")[[1]] %>% unique()
+} else if (!is.null(params$in_file)) {
+  df <- read_csv(params$in_file, show_col_types = FALSE)
+  cols <- tolower(names(df))
+  key_col <- intersect(cols, c("pln", "plant", "plants"))[1]
+  if (is.null(key_col)) stop("No usable column found in input file")
+  plant_input <- df[[key_col]] %>% unique() %>% na.omit()
+} else {
+  stop("You must provide either --plants or --in_file")
 }
+
+pln_ids <- plant_input %>% unique() %>% paste(collapse = "|")
+if (is.null(pln_ids) || pln_ids == "") stop("No valid PLN identifiers found")
+
 
 
 # ------------------ SPARQL: Get Compounds for Plants ------------------
-message("Fetching compounds associated with plants...")
+log("[Step 2] Pulling compounds associated with plants")
 
-getCompoundsForPlant <- function(SENPLN) {
-  q <- paste(sparql_prefix, paste0(
-    "SELECT distinct ?pln ?cmp
-      (group_concat(distinct(?cmp_label); separator=\"|\") as ?cmp_labels)
-      (group_concat(distinct(?part_name); separator=\"|\") as ?plant_parts)
-      (group_concat(distinct(?reference); separator=\"|\") as ?references)
-      (group_concat(distinct(?pcx_src_label); separator=\"|\") as ?plant_compound_source)
-    WHERE {
-      values ?pln { ", SENPLN, " } .
-      ?pln ^sen:inPlant ?pcx .
-      ?pcx sen:hasCompound ?cmp .
-      ?cmp rdfs:label ?cmp_label .
-      ?pcx sen:hasSource ?pcx_src .
-      ?pcx_src rdfs:label ?pcx_src_label .
-      OPTIONAL {
-        ?pcx sen:hasReference ?ref .
-        ?ref rdfs:label ?reference
-      }
-      OPTIONAL {
-        ?prt ^sen:inComponent ?pcx .
-        ?prt rdfs:label ?part_name
-      }
-    }
-    group by ?pln ?cmp
-    order by ?part_name"
-  ))
-  SPARQL(endpoint, q, ns = prefix, extra = query_options, format = "json")$results
-}
+cmp_cmd <- paste(
+  "Rscript scripts/pull_cmp_for_pln.r",
+  "--endpoint", params$endpoint,
+  "--plants", shQuote(pln_ids),
+  "--outdir", shQuote(params$outdir)
+)
+system(cmp_cmd)
 
-compound_results <- mclapply(df.id$pln, getCompoundsForPlant, mc.cores = 10)
-combined <- suppressWarnings(fix_sparql_ids(bind_rows(compound_results)))
 
 # ------------------ Safe Join ------------------
 if ("pln" %in% names(combined) && "pln" %in% names(df.id)) {
