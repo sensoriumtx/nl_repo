@@ -1,3 +1,5 @@
+#!/usr/bin/env Rscript
+
 suppressMessages(library(tidyverse))
 suppressMessages(library(lubridate))
 suppressMessages(library(parallel))
@@ -16,7 +18,7 @@ log(paste("Args:", paste(args, collapse = " | ")))
 
 # ------------------------- Argument Parsing -------------------------
 parseArgs <- function(args) {
-  out <- list(endpoint = "dev")  # default
+  out <- list(endpoint = "dev")
   i <- 1
   while (i <= length(args)) {
     arg <- args[i]
@@ -44,34 +46,43 @@ dir.create(params$outdir, showWarnings = FALSE, recursive = TRUE)
 log_file <- file.path(params$outdir, "pipeline_log.txt")
 cat("Pipeline Log\n==============\n", file = log_file)
 
-# ------------------------- Step 1: Resolve Plants -------------------------
-log("[Step 1] Resolving plant identifiers to `pln` IDs")
+# ------------------------- Step 1: Resolve or Use PLN -------------------------
+log("[Step 1] Preparing plant identifiers")
 
-plant_input <- if (!is.null(params$plants)) {
-  str_split(params$plants, "\\|")[[1]] %>% unique()
+# Step 1a - Get user input list from --plants or --in_file
+plant_input <- NULL
+if (!is.null(params$plants)) {
+  plant_input <- str_split(params$plants, "\\|")[[1]] %>% unique()
 } else if (!is.null(params$in_file)) {
   df <- read_csv(params$in_file, show_col_types = FALSE)
-  cols <- names(df)
-  key_col <- intersect(tolower(cols), c("plant", "plants", "pln", "pln_label"))[1]
+  cols <- tolower(names(df))
+  key_col <- intersect(cols, c("plant", "plants", "pln", "pln_label"))[1]
   if (is.null(key_col)) stop("No usable plant column found in input file")
-  df[[key_col]] %>% unique() %>% na.omit()
+  plant_input <- df[[key_col]] %>% unique() %>% na.omit()
 } else {
-  stop("You must provide --plants or --in_file")
+  stop("You must provide either --plants or --in_file")
 }
 
-plant_str <- paste(plant_input, collapse = "|")
-plant_resolved_file <- file.path(params$outdir, "step1_resolved_pln.csv")
-resolve_cmd <- paste(
-  "Rscript scripts/resolve_pln_id.r",  # you can implement or rename this
-  "--endpoint", params$endpoint,
-  "--plants", shQuote(plant_str),
-  "--out", shQuote(plant_resolved_file)
-)
-system(resolve_cmd)
-if (!file.exists(plant_resolved_file)) stop("Step 1 failed: resolved plant file not found")
+# Step 1b - If already in 'sen:SENPLN...' form, skip resolution
+resolved_pln_file <- file.path(params$outdir, "step1_resolved_pln.csv")
+if (all(grepl("^sen:SENPLN[0-9]+$", plant_input))) {
+  log("[Step 1] Skipping resolution; PLN IDs provided")
+  tibble(pln = plant_input) %>% write_csv(resolved_pln_file)
+} else {
+  log("[Step 1] Resolving plant names to `pln` URIs via resolve_pln_id.r")
+  plant_str <- paste(plant_input, collapse = "|")
+  resolve_cmd <- paste(
+    "Rscript scripts/resolve_pln_id.r",
+    "--endpoint", params$endpoint,
+    "--plants", shQuote(plant_str),
+    "--out", shQuote(resolved_pln_file)
+  )
+  system(resolve_cmd)
+  if (!file.exists(resolved_pln_file)) stop("Step 1 failed: resolved plant file not found")
+}
 log("[Step 1] Complete")
 
-pln_ids <- read_csv(plant_resolved_file, show_col_types = FALSE)$pln %>%
+pln_ids <- read_csv(resolved_pln_file, show_col_types = FALSE)$pln %>%
   unique() %>% paste(collapse = "|")
 if (is.null(pln_ids) || pln_ids == "") stop("No valid `pln` identifiers found")
 
@@ -104,6 +115,6 @@ if (!file.exists(plant_acts_file)) stop("Step 3 failed: plant activity file not 
 log("[Step 3] Complete")
 
 log("[Pipeline] Success. Outputs written to:")
-log(paste("  - Resolved Plants:", plant_resolved_file))
+log(paste("  - Resolved Plants:", resolved_pln_file))
 log(paste("  - Compounds for Plants:", plant_cmp_file))
 log(paste("  - Activities for Plants:", plant_acts_file))
