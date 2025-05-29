@@ -46,16 +46,21 @@ outFile <- file.path(outdir, "step2_cmp_for_plants.csv")
 dir.create(dirname(outFile), recursive = TRUE, showWarnings = FALSE)
 
 # ------------------ SPARQL: Get PLN Metadata ------------------
-message("Fetching taxon metadata for all plants...")
+message("Verifying provided plant URIs...")
 
-plant_labels <- trimws(unlist(str_split(ids, "\\|")))
-quoted_labels <- quoteString(tolower(plant_labels))
+pln_uris <- trimws(unlist(str_split(ids, "\\|")))
+quoted_uris <- paste(pln_uris, collapse = " ")
 
 plant_query <- paste(sparql_prefix, paste0(
-  "select distinct * where {
-    values ?label { ", paste0(quoted_labels, collapse = " "), " }
-    ?pln sen:lcLabel|((sen:has_taxid|rdfs:subClassOf)/sen:lcLabel) ?label .
-    ?pln rdf:type sen:taxon
+  "select distinct ?pln ?pln_label ?taxid ?rel where {
+    values ?pln { ", quoted_uris, " }
+    ?pln rdf:type sen:taxon .
+    OPTIONAL { ?pln rdfs:label ?pln_label }
+    OPTIONAL {
+      values ?rel { rdfs:subClassOf sen:has_taxid }
+      ?pln ?rel ?taxid .
+      ?taxid ncbit:has_rank ?rank
+    }
   }"
 ))
 
@@ -65,6 +70,7 @@ if (nrow(df.id) == 0) {
   write_csv(tibble(), outFile)
   quit("no", 0)
 }
+
 
 # ------------------ SPARQL: Get Compounds for Plants ------------------
 message("Fetching compounds associated with plants...")
