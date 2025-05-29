@@ -64,7 +64,7 @@ if (!file.exists(cmp_outfile)) {
 message("[Step 3] Pulling activities associated with plants")
 acts_outfile <- file.path(outdir, "step3_acts_for_pln.csv")
 acts_cmd <- paste(
-  "Rscript scripts/pull_act_for_pln_enrich.r",
+  "Rscript scripts/pull_act_for_plant_enrich.r",
   "--endpoint", endpoint,
   "--plants", shQuote(pln_ids),
   "--out", shQuote(acts_outfile)
