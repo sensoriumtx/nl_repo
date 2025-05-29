@@ -1,120 +1,118 @@
 #!/usr/bin/env Rscript
 
 suppressMessages(library(tidyverse))
-suppressMessages(library(lubridate))
 suppressMessages(library(parallel))
+suppressMessages(source("scripts/SPARQL.R"))
+suppressMessages(source("scripts/common.r"))
 
-cat("Script starting...\n", flush = TRUE)
+options(scipen = 100, digits = 4)
+args <- commandArgs(TRUE)
 
-args <- commandArgs(trailingOnly = TRUE)
-log_file <- NULL
-log <- function(message) {
-  cat(message, "\n", flush = TRUE)
-  if (!is.null(log_file)) {
-    cat(message, "\n", file = log_file, append = TRUE)
-  }
-}
-log(paste("Args:", paste(args, collapse = " | ")))
+# ------------------ Argument Defaults ------------------
+ids <- NULL
+outFile <- NULL
+endpoint <- NULL
+loop <- TRUE
 
-# ------------------------- Argument Parsing -------------------------
-parseArgs <- function(args) {
-  out <- list(endpoint = "dev")
-  i <- 1
-  while (i <= length(args)) {
-    arg <- args[i]
-    val <- if (i + 1 <= length(args)) args[i + 1] else NA
-    if (is.na(val)) stop(paste("Missing value for", arg))
-    if (arg == "--plants") {
-      out$plants <- val
-    } else if (arg == "--in_file") {
-      out$in_file <- val
-    } else if (arg == "--endpoint") {
-      out$endpoint <- val
-    } else if (arg == "--outdir") {
-      out$outdir <- val
-    } else {
-      stop(paste("Unknown argument:", arg))
+# ------------------ Argument Parsing ------------------
+while (loop) {
+  if (args[1] == "--endpoint") {
+    if (args[2] == "dev") {
+      endpoint <- endpoint_dev
     }
-    i <- i + 2
   }
-  return(out)
+
+  if (args[1] == "--plants") {
+    ids <- args[2]
+  }
+
+  if (args[1] == "--out") {
+    outFile <- args[2]
+  }
+
+  if (length(args) > 1) {
+    args <- args[2:length(args)]
+  } else {
+    loop <- FALSE
+  }
 }
 
-params <- parseArgs(args)
-if (is.null(params$outdir)) stop("--outdir must be specified")
-dir.create(params$outdir, showWarnings = FALSE, recursive = TRUE)
-log_file <- file.path(params$outdir, "pipeline_log.txt")
-cat("Pipeline Log\n==============\n", file = log_file)
+if (is.null(ids) || is.null(outFile)) {
+  stop("Both --plants and --out must be provided.")
+}
 
-# ------------------------- Step 1: Resolve or Use PLN -------------------------
-log("[Step 1] Preparing plant identifiers")
+dir.create(dirname(outFile), recursive = TRUE, showWarnings = FALSE)
 
-# Step 1a - Get user input list from --plants or --in_file
-plant_input <- NULL
-if (!is.null(params$plants)) {
-  plant_input <- str_split(params$plants, "\\|")[[1]] %>% unique()
-} else if (!is.null(params$in_file)) {
-  df <- read_csv(params$in_file, show_col_types = FALSE)
-  cols <- tolower(names(df))
-  key_col <- intersect(cols, c("plant", "plants", "pln", "pln_label"))[1]
-  if (is.null(key_col)) stop("No usable plant column found in input file")
-  plant_input <- df[[key_col]] %>% unique() %>% na.omit()
+# ------------------ SPARQL: Get PLN Metadata ------------------
+message("Fetching taxon metadata for all plants...")
+
+plant_labels <- trimws(unlist(str_split(ids, "\\|")))
+quoted_labels <- quoteString(tolower(plant_labels))
+
+plant_query <- paste(sparql_prefix, paste0(
+  "select distinct * where {
+    values ?label { ", paste0(quoted_labels, collapse = " "), " }
+    ?pln sen:lcLabel|((sen:has_taxid|rdfs:subClassOf)/sen:lcLabel) ?label .
+    ?pln rdf:type sen:taxon
+  }"
+))
+
+df.id <- SPARQL(endpoint, plant_query, ns = prefix, extra = query_options, format = "json")$results
+if (nrow(df.id) == 0) {
+  warning("No plants found. Exiting with empty result.")
+  write_csv(tibble(), outFile)
+  quit("no", 0)
+}
+
+# ------------------ SPARQL: Get Compounds for Plants ------------------
+message("Fetching compounds associated with plants...")
+
+getCompoundsForPlant <- function(SENPLN) {
+  q <- paste(sparql_prefix, paste0(
+    "SELECT distinct ?pln ?cmp
+      (group_concat(distinct(?cmp_label); separator=\"|\") as ?cmp_labels)
+      (group_concat(distinct(?part_name); separator=\"|\") as ?plant_parts)
+      (group_concat(distinct(?reference); separator=\"|\") as ?references)
+      (group_concat(distinct(?pcx_src_label); separator=\"|\") as ?plant_compound_source)
+    WHERE {
+      values ?pln { ", SENPLN, " } .
+      ?pln ^sen:inPlant ?pcx .
+      ?pcx sen:hasCompound ?cmp .
+      ?cmp rdfs:label ?cmp_label .
+      ?pcx sen:hasSource ?pcx_src .
+      ?pcx_src rdfs:label ?pcx_src_label .
+      OPTIONAL {
+        ?pcx sen:hasReference ?ref .
+        ?ref rdfs:label ?reference
+      }
+      OPTIONAL {
+        ?prt ^sen:inComponent ?pcx .
+        ?prt rdfs:label ?part_name
+      }
+    }
+    group by ?pln ?cmp
+    order by ?part_name"
+  ))
+  SPARQL(endpoint, q, ns = prefix, extra = query_options, format = "json")$results
+}
+
+compound_results <- mclapply(df.id$pln, getCompoundsForPlant, mc.cores = 10)
+combined <- suppressWarnings(fix_sparql_ids(bind_rows(compound_results)))
+
+# ------------------ Safe Join ------------------
+if ("pln" %in% names(combined) && "pln" %in% names(df.id)) {
+  message("Joining plant metadata with compound results")
+  combined <- combined %>%
+    left_join(df.id, by = "pln")
 } else {
-  stop("You must provide either --plants or --in_file")
+  warning("Join skipped: 'pln' column missing in one or both data frames.")
 }
 
-# Step 1b - If already in 'sen:SENPLN...' form, skip resolution
-resolved_pln_file <- file.path(params$outdir, "step1_resolved_pln.csv")
-if (all(grepl("^sen:SENPLN[0-9]+$", plant_input))) {
-  log("[Step 1] Skipping resolution; PLN IDs provided")
-  tibble(pln = plant_input) %>% write_csv(resolved_pln_file)
+# ------------------ Save Output ------------------
+if (nrow(combined) == 0) {
+  message("No results retrieved.")
 } else {
-  log("[Step 1] Resolving plant names to `pln` URIs via resolve_pln_id.r")
-  plant_str <- paste(plant_input, collapse = "|")
-  resolve_cmd <- paste(
-    "Rscript scripts/resolve_pln_id.r",
-    "--endpoint", params$endpoint,
-    "--plants", shQuote(plant_str),
-    "--out", shQuote(resolved_pln_file)
-  )
-  system(resolve_cmd)
-  if (!file.exists(resolved_pln_file)) stop("Step 1 failed: resolved plant file not found")
+  message(paste("Total rows retrieved:", nrow(combined)))
 }
-log("[Step 1] Complete")
 
-pln_ids <- read_csv(resolved_pln_file, show_col_types = FALSE)$pln %>%
-  unique() %>% paste(collapse = "|")
-if (is.null(pln_ids) || pln_ids == "") stop("No valid `pln` identifiers found")
-
-# ------------------------- Step 2: Pull Compounds for Plants -------------------------
-log("[Step 2] Pulling compounds associated with plants")
-
-plant_cmp_file <- file.path(params$outdir, "step2_cmp_for_plants.csv")
-cmp_cmd <- paste(
-  "Rscript scripts/pull_cmp_for_pln.r",
-  "--endpoint", params$endpoint,
-  "--plants", shQuote(pln_ids),
-  "--out", shQuote(plant_cmp_file)
-)
-system(cmp_cmd)
-if (!file.exists(plant_cmp_file)) stop("Step 2 failed: compound file not found")
-log("[Step 2] Complete")
-
-# ------------------------- Step 3: Pull Activities for Plants -------------------------
-log("[Step 3] Pulling activities associated with plants")
-
-plant_acts_file <- file.path(params$outdir, "step3_acts_for_pln.csv")
-acts_cmd <- paste(
-  "Rscript scripts/pull_acts_for_pln_id.r",
-  "--endpoint", params$endpoint,
-  "--plants", shQuote(pln_ids),
-  "--out", shQuote(plant_acts_file)
-)
-system(acts_cmd)
-if (!file.exists(plant_acts_file)) stop("Step 3 failed: plant activity file not found")
-log("[Step 3] Complete")
-
-log("[Pipeline] Success. Outputs written to:")
-log(paste("  - Resolved Plants:", resolved_pln_file))
-log(paste("  - Compounds for Plants:", plant_cmp_file))
-log(paste("  - Activities for Plants:", plant_acts_file))
+write_csv(combined, outFile)
