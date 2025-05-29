@@ -10,8 +10,8 @@ args <- commandArgs(TRUE)
 
 # ------------------ Argument Defaults ------------------
 ids <- NULL
-outFile <- NULL
 endpoint <- NULL
+outdir <- NULL
 loop <- TRUE
 
 # ------------------ Argument Parsing ------------------
@@ -26,8 +26,8 @@ while (loop) {
     ids <- args[2]
   }
 
-  if (args[1] == "--out") {
-    outFile <- args[2]
+  if (args[1] == "--outdir") {
+    outdir <- args[2]
   }
 
   if (length(args) > 1) {
@@ -37,10 +37,12 @@ while (loop) {
   }
 }
 
-if (is.null(ids) || is.null(outFile)) {
-  stop("Both --plants and --out must be provided.")
+if (is.null(ids) || is.null(outdir)) {
+  stop("Both --plants and --outdir must be provided.")
 }
 
+# Construct output path
+outFile <- file.path(outdir, "step2_cmp_for_plants.csv")
 dir.create(dirname(outFile), recursive = TRUE, showWarnings = FALSE)
 
 # ------------------ SPARQL: Get PLN Metadata ------------------
@@ -110,9 +112,8 @@ if ("pln" %in% names(combined) && "pln" %in% names(df.id)) {
 
 # ------------------ Save Output ------------------
 if (nrow(combined) == 0) {
-  message("No results retrieved.")
+  message("No compound mappings found.")
 } else {
   message(paste("Total rows retrieved:", nrow(combined)))
 }
-
 write_csv(combined, outFile)
