@@ -1,12 +1,12 @@
 #!/usr/bin/env Rscript
 
+# ------------------------- Initialization -------------------------
 suppressMessages(library(tidyverse))
 suppressMessages(library(lubridate))
 suppressMessages(library(parallel))
 
 cat("Script starting...\n", flush = TRUE)
 
-# ------------------------- Logging -------------------------
 args <- commandArgs(trailingOnly = TRUE)
 log_file <- NULL
 log <- function(message) {
@@ -79,6 +79,7 @@ if (!is.null(params$cmp_in_file)) {
   stop("❌ No valid input provided. Use --cmp_in_file, --cmp, or --search + --scoring.")
 }
 
+if (length(cmp_ids) == 0) stop("❌ No compound identifiers resolved.")
 log(paste("✓ Final resolved cmp count:", length(cmp_ids)))
 
 # ------------------------- Utility: Chunking Function -------------------------
@@ -142,6 +143,8 @@ log("[Step 3] Pulling activities for plants (chunked)")
 pln_df <- read_csv(step1_out, show_col_types = FALSE)
 if (!"pln_label" %in% names(pln_df)) stop("❌ step1 output missing 'pln_label' column.")
 pln_ids <- pln_df$pln_label %>% unique() %>% na.omit()
+if (length(pln_ids) == 0) stop("❌ No plant identifiers found from Step 1.")
+
 step3_out <- run_chunked_step(
   input_ids = pln_ids,
   chunk_size = 250,
