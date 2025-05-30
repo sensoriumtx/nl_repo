@@ -23,13 +23,13 @@ while (i <= length(args)) {
 }
 
 # ------------------ Validate ------------------
-if (is.null(params$outdir)) stop("❌ --outdir must be specified")
+if (is.null(params$outdir)) stop("--outdir must be specified")
 dir.create(params$outdir, recursive = TRUE, showWarnings = FALSE)
 
-if (is.null(params$endpoint)) stop("❌ --endpoint must be specified")
+if (is.null(params$endpoint)) stop("--endpoint must be specified")
 
 if (is.null(params$cmp) && is.null(params$cmp_file) && is.null(params$smiles) && is.null(params$smiles_file)) {
-  stop("❌ You must provide one of: --cmp, --cmp_file, --smiles, or --smiles_file")
+  stop("You must provide one of: --cmp, --cmp_file, --smiles, or --smiles_file")
 }
 
 # ------------------ Determine Input ------------------
@@ -42,7 +42,7 @@ if (!is.null(params$cmp)) {
 
 } else if (!is.null(params$cmp_file)) {
   cmp_df <- read_csv(params$cmp_file, show_col_types = FALSE)
-  if (!"cmp" %in% names(cmp_df)) stop("❌ cmp_file must have a column named 'cmp'")
+  if (!"cmp" %in% names(cmp_df)) stop("cmp_file must have a column named 'cmp'")
   cmp_vals <- cmp_df$cmp %>% unique() %>% na.omit() %>% trimws()
   input_type <- "cmp"
   target_script <- "scripts/pull_acts_for_specific_cmp_ids.r"
@@ -59,7 +59,7 @@ if (!is.null(params$cmp)) {
 } else if (!is.null(params$smiles_file)) {
   smiles_df <- read_csv(params$smiles_file, show_col_types = FALSE)
   col <- intersect(names(smiles_df), c("smiles", "SMILES"))[1]
-  if (is.na(col)) stop("❌ smiles_file must have a 'smiles' or 'SMILES' column")
+  if (is.na(col)) stop("smiles_file must have a 'smiles' or 'SMILES' column")
   smiles_vals <- smiles_df[[col]] %>% unique() %>% na.omit() %>% trimws()
   input_type <- "smiles"
   target_script <- "/sensorium-research-kb/dev/data/query_output/testing/for_nick/Nick_dev/R_Script_Dev/pull_act_for_specific_smiles.r"
@@ -81,7 +81,7 @@ cat("→ Running command:\n", cmd, "\n")
 exit_code <- system(cmd)
 
 if (exit_code != 0 || !file.exists(out_file)) {
-  stop("❌ Script failed or output file not generated.")
+  stop("Script failed or output file not generated.")
 }
 
-cat("✔ Step 1 complete. Output saved to:\n", out_file, "\n")
+cat("Step 1 complete. Output saved to:\n", out_file, "\n")
