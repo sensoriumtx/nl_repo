@@ -78,7 +78,7 @@ log("[Step 1] Pulling plants associated with resolved compounds")
 
 plants_file <- file.path(params$outdir, "step1_plants_for_cmp.csv")
 plant_cmd <- paste(
-  "Rscript scripts/pull_plant_for_cmp_id.r",
+  "Rscript scripts/pull_plant_for_compound_ids.r",
   "--endpoint", params$endpoint,
   "--compound_activity_file", shQuote(resolved_cmp_file),
   "--cmp_id_column", "cmp",
