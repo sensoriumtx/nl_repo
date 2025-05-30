@@ -21,8 +21,8 @@ while (length(args) > 0) {
   } else if (args[1] == "--plants") {
     ids <- args[2]
     args <- args[-c(1, 2)]
-  } else if (args[1] == "--out") {
-    cmp_outfile <- args[2]
+  } else if (args[1] == "--outdir") {
+    cmp_outdir <- args[2]
     args <- args[-c(1, 2)]
   } else {
     stop(paste("Unknown argument:", args[1]))
@@ -42,6 +42,8 @@ plant_input <- str_split(ids, "\\|")[[1]] %>% unique()
 pln_ids <- paste(plant_input, collapse = "|")
 if (is.null(pln_ids) || pln_ids == "") stop("No valid PLN identifiers found")
 
+cmp_outfile <- file.path(dirname(cmp_outdir), "step1_cmp_for_pln.csv")
+
 cmp_cmd <- paste(
   "Rscript scripts/pull_cmp_for_pln.r",
   "--endpoint", endpoint,
@@ -53,7 +55,7 @@ system(cmp_cmd)
 # ------------------ Step 2: Pull Activities for Plants ------------------
 message("[Step 2] Pulling activities associated with plants")
 
-acts_outfile <- file.path(dirname(cmp_outfile), "step2_acts_for_pln.csv")
+acts_outfile <- file.path(dirname(cmp_outdir), "step2_acts_for_pln.csv")
 
 acts_cmd <- paste(
   "Rscript scripts/pull_acts_for_specific_pln.r",
@@ -64,3 +66,5 @@ acts_cmd <- paste(
 system(acts_cmd)
 
 message("✓ Step 2 completed. Activities for plants saved to:", acts_outfile)
+
+
