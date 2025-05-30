@@ -56,7 +56,7 @@ message("[Step 2] Pulling activities associated with plants")
 acts_outfile <- file.path(dirname(cmp_outfile), "step2_acts_for_pln.csv")
 
 acts_cmd <- paste(
-  "Rscript scripts/pull_act_for_plant_enrich.r",
+  "Rscript scripts/pull_acts_for_specific_pln.r",
   "--endpoint", endpoint,
   "--plants", shQuote(pln_ids),
   "--out", shQuote(acts_outfile)
