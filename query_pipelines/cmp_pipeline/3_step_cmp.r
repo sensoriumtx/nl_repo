@@ -1,3 +1,38 @@
+#!/usr/bin/env Rscript
+
+suppressMessages(library(tidyverse))
+suppressMessages(library(lubridate))
+
+cat("Step 1 starting...\n", flush = TRUE)
+
+# ------------------ Parse Args ------------------
+args <- commandArgs(trailingOnly = TRUE)
+
+params <- list()
+i <- 1
+while (i <= length(args)) {
+  key <- args[i]
+  val <- if (i + 1 <= length(args)) args[i + 1] else NA
+  if (is.na(val)) stop(paste("Missing value for", key))
+  if (key %in% c("--cmp", "--cmp_file", "--smiles", "--smiles_file", "--endpoint", "--outdir")) {
+    params[[substr(key, 3, nchar(key))]] <- val
+  } else {
+    stop(paste("Unknown argument:", key))
+  }
+  i <- i + 2
+}
+
+# ------------------ Validate ------------------
+if (is.null(params$outdir)) stop("--outdir must be specified")
+dir.create(params$outdir, recursive = TRUE, showWarnings = FALSE)
+
+if (is.null(params$endpoint)) stop("--endpoint must be specified")
+
+if (is.null(params$cmp) && is.null(params$cmp_file) && is.null(params$smiles) && is.null(params$smiles_file)) {
+  stop("You must provide one of: --cmp, --cmp_file, --smiles, or --smiles_file")
+}
+
+
 # ------------------ Determine Input ------------------
 if (!is.null(params$cmp)) {
   compound_vals <- str_split(params$cmp, "\\|")[[1]] %>% unique() %>% na.omit() %>% trimws()
