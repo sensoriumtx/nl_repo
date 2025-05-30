@@ -57,7 +57,7 @@ if (!is.null(params$in_file)) {
     matches <- matches %>% filter(str_detect(tolower(cmp_label), tolower(params$cmp_label)))
   }
   if (!is.null(params$smiles)) {
-    matches <- matches %>% filter(str_detect(tolower(primarySmiles), tolower(params$smiles)))
+    matches <- matches %>% filter(str_detect(tolower(primary_SMILES), tolower(params$smiles)))
   }
   if (!is.null(params$inchi)) {
     matches <- matches %>% filter(str_detect(tolower(inchi), tolower(params$inchi)))
@@ -83,7 +83,7 @@ if (!is.null(params$in_file)) {
   log("[Step 0] Skipped: no --in_file provided")
   resolve_input <- tibble(
     cmp = params$cmp,
-    primarySmiles = params$smiles,
+    primary_SMILES = params$smiles,
     inchi = params$inchi,
     inchi_key = params$inchi_key,
     iupac_name = params$iupac,
