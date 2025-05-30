@@ -110,7 +110,7 @@ plant_labels <- read_csv(plants_file, show_col_types = FALSE)$pln_label %>%
 
 plant_acts_file <- file.path(params$outdir, "step3_acts_for_pln.csv")
 pln_act_cmd <- paste(
-  "Rscript scripts/pull_acts_for_pln_id.r",
+  "Rscript scripts/pull_acts_for_specific_pln.r",
   "--endpoint", params$endpoint,
   "--plants", shQuote(plant_labels),
   "--out", shQuote(plant_acts_file)
