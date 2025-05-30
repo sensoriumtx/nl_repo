@@ -11,7 +11,7 @@ args <- commandArgs(TRUE)
 # ------------------ Argument Parsing ------------------
 endpoint <- "dev"
 ids <- NULL
-cmp_outfile <- NULL
+cmp_outdir <- NULL
 acts_outfile <- NULL
 
 while (length(args) > 0) {
@@ -33,7 +33,7 @@ if (is.null(ids) || is.null(cmp_outdir)) {
   stop("Both --plants and --outdir must be provided.")
 }
 
-dir.create(dirname(cmp_outfile), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(cmp_outdir), recursive = TRUE, showWarnings = FALSE)
 
 # ------------------ Step 1: Pull Compounds for Plants ------------------
 message("[Step 1] Pulling compounds associated with plants")
