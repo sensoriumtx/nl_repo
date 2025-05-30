@@ -1,157 +1,105 @@
 #!/usr/bin/env Rscript
 
+# ------------------ Load Libraries and Sources ------------------
 suppressMessages(library(tidyverse))
-suppressMessages(library(lubridate))
 suppressMessages(library(parallel))
+suppressMessages(source("scripts/SPARQL.R"))
+suppressMessages(source("scripts/common.r"))
 
-cat("Script starting...\n", flush = TRUE)
+options(scipen = 100, digits = 4)
 
-# ------------------------- Logging -------------------------
-args <- commandArgs(trailingOnly = TRUE)
-log_file <- NULL
-log <- function(message) {
-  cat(message, "\n", flush = TRUE)
-  if (!is.null(log_file)) {
-    cat(message, "\n", file = log_file, append = TRUE)
+# ------------------ Argument Parsing ------------------
+args <- commandArgs(TRUE)
+endpoint <- "dev"
+scoring_file <- NULL
+cmp_string <- NULL
+cmp_file <- NULL
+outdir <- NULL
+chunk_size <- 50
+
+while (length(args) > 0) {
+  if (args[1] == "--endpoint") {
+    endpoint <- if (args[2] == "dev") endpoint_dev else args[2]
+    args <- args[-c(1, 2)]
+  } else if (args[1] == "--cmp") {
+    cmp_string <- args[2]
+    args <- args[-c(1, 2)]
+  } else if (args[1] == "--cmp_in_file") {
+    cmp_file <- args[2]
+    args <- args[-c(1, 2)]
+  } else if (args[1] == "--scoring") {
+    scoring_file <- args[2]
+    args <- args[-c(1, 2)]
+  } else if (args[1] == "--outdir") {
+    outdir <- args[2]
+    args <- args[-c(1, 2)]
+  } else if (args[1] == "--chunk") {
+    chunk_size <- as.integer(args[2])
+    args <- args[-c(1, 2)]
+  } else {
+    stop(paste("Unknown argument:", args[1]))
   }
 }
 
-# ------------------------- Argument Parsing -------------------------
-parseArgs <- function(args) {
-  out <- list(endpoint = "dev")
-  i <- 1
-  while (i <= length(args)) {
-    arg <- args[i]
-    val <- if (i + 1 <= length(args)) args[i + 1] else NA
-    if (is.na(val)) stop(paste("Missing value for", arg))
-    if (arg == "--cmp") out$cmp <- val
-    else if (arg == "--cmp_in_file") out$cmp_in_file <- val
-    else if (arg == "--search") out$search <- val
-    else if (arg == "--scoring") out$scoring <- val
-    else if (arg == "--endpoint") out$endpoint <- val
-    else if (arg == "--outdir") out$outdir <- val
-    else stop(paste("Unknown argument:", arg))
-    i <- i + 2
-  }
-  return(out)
-}
+if (is.null(outdir) || is.null(scoring_file)) stop("--scoring and --outdir are required")
+if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE)
+message("✓ Output directory confirmed: ", outdir)
 
-params <- parseArgs(args)
-if (is.null(params$outdir)) stop("--outdir must be specified")
+# ------------------ Step 0: Resolve cmp list ------------------
+message("[Step 0] Resolving input compound identifiers")
+cmp_list <- character()
 
-dir.create(params$outdir, showWarnings = FALSE, recursive = TRUE)
-log_file <- file.path(params$outdir, "pipeline_log.txt")
-cat("Pipeline Log\n==============\n", file = log_file)
-log(paste("Args:", paste(args, collapse = " | ")))
-
-# ------------------------- Step 0: Resolve CMPs -------------------------
-log("[Step 0] Resolving input compound identifiers")
-cmp_ids <- NULL
-resolved_cmp_file <- NULL
-
-if (!is.null(params$cmp_in_file)) {
-  log("→ Using cmp values from --cmp_in_file")
-  cmp_df <- read_csv(params$cmp_in_file, show_col_types = FALSE)
-  if (!"cmp" %in% names(cmp_df)) stop("The file provided to --cmp_in_file must contain a 'cmp' column.")
-  cmp_ids <- cmp_df$cmp %>% unique() %>% na.omit() %>% sort()
-  resolved_cmp_file <- params$cmp_in_file
-
-} else if (!is.null(params$cmp)) {
-  log("→ Using cmp values from --cmp string")
-  cmp_ids <- str_split(params$cmp, "\\|")[[1]] %>% unique() %>% na.omit() %>% sort()
-  resolved_cmp_file <- file.path(params$outdir, "step0_cmp_from_arg.csv")
-  write_csv(tibble(cmp = cmp_ids), resolved_cmp_file)
-
-} else if (!is.null(params$search) && !is.null(params$scoring)) {
-  log("→ Performing grep-style search using --search across --scoring file")
-  search_term <- tolower(params$search)
-  master_df <- read_csv(params$scoring, show_col_types = FALSE)
-  char_cols <- master_df %>% select(where(is.character)) %>% names()
-  matches <- master_df %>%
-    filter(if_any(all_of(char_cols), ~ str_detect(tolower(.), fixed(search_term, ignore_case = TRUE))))
-  if (nrow(matches) == 0) stop("No matches found for search term:", search_term)
-  resolved_cmp_file <- file.path(params$outdir, "step0_grep_matched_rows.csv")
-  write_csv(matches, resolved_cmp_file)
-  cmp_ids <- matches$cmp %>% unique() %>% na.omit() %>% sort()
-  log(paste("✓ Found", length(cmp_ids), "unique cmp matches from grep search"))
-
+if (!is.null(cmp_string)) {
+  message("→ Using cmp values from --cmp string")
+  cmp_list <- unique(str_split(cmp_string, "\\|")[[1]])
+} else if (!is.null(cmp_file)) {
+  message("→ Reading cmp values from file: ", cmp_file)
+  cmp_df <- read_csv(cmp_file, show_col_types = FALSE)
+  if (!"cmp" %in% colnames(cmp_df)) stop("Input file must contain 'cmp' column")
+  cmp_list <- unique(cmp_df$cmp)
 } else {
-  stop("❌ No valid input provided. Use --cmp_in_file, --cmp, or --search + --scoring.")
+  message("→ Searching master scoring file using partial matches")
+  scoring_df <- read_csv(scoring_file, show_col_types = FALSE)
+  message("Available sample rows:")
+  print(head(scoring_df, 3))
+  search_term <- readline(prompt = "Enter search string for cmp filtering: ")
+  matches <- scoring_df %>% filter(if_any(everything(), ~ str_detect(as.character(.), fixed(search_term, ignore_case = TRUE))))
+  if (nrow(matches) == 0) stop("No matches found in scoring file.")
+  cmp_list <- unique(matches$cmp)
+  write_csv(matches, file.path(outdir, "matched_cmp_rows.csv"))
 }
 
-log(paste("✓ Final resolved cmp count:", length(cmp_ids)))
+cmp_list <- unique(cmp_list[!is.na(cmp_list)])
+message("✓ Final resolved cmp count: ", length(cmp_list))
 
-# ------------------------- Utility: Chunking Function -------------------------
-run_chunked_step <- function(
-  input_ids, chunk_size, step_prefix, outdir, step_script, arg_flag, endpoint
-) {
-  chunk_dir <- file.path(outdir, paste0(step_prefix, "_chunks"))
-  dir.create(chunk_dir, showWarnings = FALSE, recursive = TRUE)
-  input_chunks <- split(input_ids, ceiling(seq_along(input_ids) / chunk_size))
-  chunk_files <- list()
+# ------------------ Step 1: Pull Plants for Compounds ------------------
+message("[Step 1] Pulling plants for compounds (chunked)")
+step1_dir <- file.path(outdir, "step1_plants_chunks")
+if (!dir.exists(step1_dir)) dir.create(step1_dir, recursive = TRUE)
 
-  for (i in seq_along(input_chunks)) {
-    chunk_vals <- input_chunks[[i]]
-    chunk_str <- paste(chunk_vals, collapse = "|")
-    chunk_out <- file.path(chunk_dir, sprintf("%s_chunk_%03d.csv", step_prefix, i))
-    cmd <- paste(
-      "Rscript", step_script,
-      "--endpoint", endpoint,
-      arg_flag, shQuote(chunk_str),
-      "--out", shQuote(chunk_out)
-    )
-    log(paste("Running", step_prefix, "chunk", i, "→", chunk_out))
-    system(cmd)
-    chunk_files[[i]] <- chunk_out
-  }
+chunks <- split(cmp_list, ceiling(seq_along(cmp_list)/chunk_size))
+chunk_files <- c()
 
-  final_out <- file.path(outdir, paste0(step_prefix, "_final.csv"))
-  merged_df <- bind_rows(lapply(chunk_files, read_csv, show_col_types = FALSE))
-  write_csv(merged_df, final_out)
-  log(paste("✓", step_prefix, "complete. Final output →", final_out))
-  return(final_out)
+for (i in seq_along(chunks)) {
+  chunk <- chunks[[i]]
+  chunk_file <- file.path(step1_dir, sprintf("step1_plants_chunk_%03d.csv", i))
+  write_csv(tibble(cmp = chunk), chunk_file)
+  chunk_files <- c(chunk_files, chunk_file)
+
+  cmd <- paste(
+    "Rscript scripts/step1_plants_chunked.r",
+    shQuote(chunk_file),
+    shQuote(chunk_file)  # Reusing for output inside script
+  )
+  message("Running step1_plants chunk ", i, " → ", chunk_file)
+  system(cmd)
 }
 
-# ------------------------- Step 1: Pull Plants for CMP -------------------------
-log("[Step 1] Pulling plants for compounds (chunked)")
-step1_out <- run_chunked_step(
-  input_ids = cmp_ids,
-  chunk_size = 250,
-  step_prefix = "step1_plants",
-  outdir = params$outdir,
-  step_script = "scripts/pull_plant_for_compound_ids.r",
-  arg_flag = "--compound",
-  endpoint = params$endpoint
-)
+# Merge all chunked outputs
+step1_merged <- map_dfr(chunk_files, ~read_csv(.x, show_col_types = FALSE))
+write_csv(step1_merged, file.path(outdir, "step1_plants_complete.csv"))
+message("✓ Step 1 complete → All plant data merged.")
 
-# ------------------------- Step 2: Pull Acts for CMP -------------------------
-log("[Step 2] Pulling activities for compounds (chunked)")
-step2_out <- run_chunked_step(
-  input_ids = cmp_ids,
-  chunk_size = 250,
-  step_prefix = "step2_acts",
-  outdir = params$outdir,
-  step_script = "scripts/pull_acts_for_specific_cmp_ids.r",
-  arg_flag = "--compound",
-  endpoint = params$endpoint
-)
-
-# ------------------------- Step 3: Pull Acts for PLNs -------------------------
-log("[Step 3] Pulling activities for plants (chunked)")
-pln_ids <- read_csv(step1_out, show_col_types = FALSE)$pln_label %>% unique() %>% na.omit()
-step3_out <- run_chunked_step(
-  input_ids = pln_ids,
-  chunk_size = 250,
-  step_prefix = "step3_acts",
-  outdir = params$outdir,
-  step_script = "scripts/pull_acts_for_specific_pln.r",
-  arg_flag = "--plants",
-  endpoint = params$endpoint
-)
-
-# ------------------------- Completion -------------------------
-log("[Pipeline] Success. Outputs written to:")
-log(paste("  - Resolved CMPs:", resolved_cmp_file))
-log(paste("  - Plants for CMPs:", step1_out))
-log(paste("  - Activities for CMPs:", step2_out))
-log(paste("  - Activities for Plants:", step3_out))
+# ------------------ Future Steps Go Here ------------------
+# Example placeholder
+message("→ Next steps (e.g., activity pulling) can now proceed using merged compound data")
