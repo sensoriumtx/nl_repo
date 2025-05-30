@@ -29,8 +29,8 @@ while (length(args) > 0) {
   }
 }
 
-if (is.null(ids) || is.null(cmp_outfile)) {
-  stop("Both --plants and --out must be provided.")
+if (is.null(ids) || is.null(cmp_outdir)) {
+  stop("Both --plants and --outdir must be provided.")
 }
 
 dir.create(dirname(cmp_outfile), recursive = TRUE, showWarnings = FALSE)
