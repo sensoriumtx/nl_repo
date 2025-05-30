@@ -93,7 +93,7 @@ log("[Step 2] Pulling activities associated with compounds")
 
 cmp_acts_file <- file.path(params$outdir, "step2_acts_for_cmp.csv")
 act_cmd <- paste(
-  "Rscript scripts/pull_acts_for_cmp_id.r",
+  "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
   "--endpoint", params$endpoint,
   "--compound", shQuote(cmp_ids),
   "--out", shQuote(cmp_acts_file)
