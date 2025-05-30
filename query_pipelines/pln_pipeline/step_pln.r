@@ -1,18 +1,19 @@
 #!/usr/bin/env Rscript
 
+# ------------------ Load Libraries and Sources ------------------
 suppressMessages(library(tidyverse))
 suppressMessages(library(parallel))
 suppressMessages(source("scripts/SPARQL.R"))
 suppressMessages(source("scripts/common.r"))
 
 options(scipen = 100, digits = 4)
-args <- commandArgs(TRUE)
 
 # ------------------ Argument Parsing ------------------
+args <- commandArgs(TRUE)
+
 endpoint <- "dev"
 ids <- NULL
 cmp_outdir <- NULL
-acts_outfile <- NULL
 
 while (length(args) > 0) {
   if (args[1] == "--endpoint") {
@@ -29,11 +30,16 @@ while (length(args) > 0) {
   }
 }
 
+# ------------------ Argument Validation ------------------
 if (is.null(ids) || is.null(cmp_outdir)) {
   stop("Both --plants and --outdir must be provided.")
 }
 
-dir.create(params$cmp_outdir, recursive = TRUE, showWarnings = FALSE)
+# ------------------ Output Directory Handling ------------------
+if (!dir.exists(cmp_outdir)) {
+  dir.create(cmp_outdir, recursive = TRUE, showWarnings = FALSE)
+}
+message("✓ Output directory created or confirmed at: ", cmp_outdir)
 
 # ------------------ Step 1: Pull Compounds for Plants ------------------
 message("[Step 1] Pulling compounds associated with plants")
@@ -42,7 +48,7 @@ plant_input <- str_split(ids, "\\|")[[1]] %>% unique()
 pln_ids <- paste(plant_input, collapse = "|")
 if (is.null(pln_ids) || pln_ids == "") stop("No valid PLN identifiers found")
 
-cmp_outfile <- file.path(dirname(cmp_outdir), "step1_cmp_for_pln.csv")
+cmp_outfile <- file.path(cmp_outdir, "step1_cmp_for_pln.csv")
 
 cmp_cmd <- paste(
   "Rscript scripts/pull_cmp_for_pln.r",
@@ -52,10 +58,12 @@ cmp_cmd <- paste(
 )
 system(cmp_cmd)
 
+message("✓ Step 1 completed. Compounds saved to:", cmp_outfile)
+
 # ------------------ Step 2: Pull Activities for Plants ------------------
 message("[Step 2] Pulling activities associated with plants")
 
-acts_outfile <- file.path(dirname(cmp_outdir), "step2_acts_for_pln.csv")
+acts_outfile <- file.path(cmp_outdir, "step2_acts_for_pln.csv")
 
 acts_cmd <- paste(
   "Rscript scripts/pull_acts_for_specific_pln.r",
@@ -65,6 +73,4 @@ acts_cmd <- paste(
 )
 system(acts_cmd)
 
-message("✓ Step 2 completed. Activities for plants saved to:", acts_outfile)
-
-
+message("✓ Step 2 completed. Activities saved to:", acts_outfile)
