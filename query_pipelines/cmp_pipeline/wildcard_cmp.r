@@ -1,3 +1,7 @@
+# Nick Laskowski
+# Version 1.0
+# Wilcard Search to Semantic Association.
+
 #!/usr/bin/env Rscript
 
 suppressMessages(library(tidyverse))
