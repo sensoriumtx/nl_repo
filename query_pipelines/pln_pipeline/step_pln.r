@@ -83,13 +83,16 @@ if (is.null(cmp_df) || !"cmp" %in% colnames(cmp_df)) {
   stop("Step 1 output missing or 'cmp' column not found. Cannot proceed to Step 3.")
 }
 
+# Extract unique cmp values and collapse into a single string
 cmp_ids_vector <- cmp_df$cmp %>% unique() %>% sort()
-if (length(cmp_ids_vector) == 0) stop("No valid compound identifiers found for Step 3.")
+cmp_ids_string <- paste(cmp_ids_vector, collapse = "|")
+if (cmp_ids_string == "") stop("No valid compound identifiers found for Step 3.")
 
-# Write to file to avoid command-line length issues
+# Write collapsed string to a file
 cmp_ids_file <- file.path(cmp_outdir, "step3_cmp_ids.txt")
-writeLines(cmp_ids_vector, cmp_ids_file)
+writeLines(cmp_ids_string, cmp_ids_file)
 
+# Construct command using file-based compound input
 cmp_acts_cmd <- paste(
   "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
   "--endpoint", endpoint,
