@@ -125,3 +125,5 @@ log(paste("  - Matched CMP rows:", resolved_cmp_file))
 log(paste("  - Plants for CMPs:", plants_file))
 log(paste("  - Activities for CMPs:", cmp_acts_file))
 log(paste("  - Activities for Plants:", plant_acts_file))
+
+# Closed v1.4
