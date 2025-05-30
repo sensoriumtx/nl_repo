@@ -14,7 +14,7 @@ run_chunked_step <- function(
   input_ids,
   step_script,
   arg_flag,
-  chunk_size = 50,
+  chunk_size = 300,
   endpoint = NULL,
   output_dir
 ) {
