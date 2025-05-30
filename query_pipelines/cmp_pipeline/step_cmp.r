@@ -42,8 +42,8 @@ dir.create(params$outdir, showWarnings = FALSE, recursive = TRUE)
 log_file <- file.path(params$outdir, "pipeline_log.txt")
 cat("Pipeline Log\n==============\n", file = log_file)
 
-# ------------------------- Step 0: Open Grep-style CMP Search -------------------------
-log("[Step 0] Performing grep-like search across all string fields in master file")
+# ------------------------- Step 0: Open Format style CMP Search -------------------------
+log("[Step 0] Performing wildcard search across all string fields in master file")
 
 if (is.null(params$in_file)) stop("You must provide --in_file to search from a master CSV.")
 if (is.null(params$search)) stop("You must provide a search string using --search")
@@ -63,7 +63,7 @@ matches <- master_df %>%
 if (nrow(matches) == 0) stop("No matches found for search term:", search_term)
 
 # Output full matched rows and extract unique cmp
-resolved_cmp_file <- file.path(params$outdir, "step0_grep_matched_rows.csv")
+resolved_cmp_file <- file.path(params$outdir, "step0_wildcard_matched_rows.csv")
 write_csv(matches, resolved_cmp_file)
 
 cmp_ids <- matches$cmp %>% unique() %>% na.omit() %>% sort() %>% paste(collapse = "|")
