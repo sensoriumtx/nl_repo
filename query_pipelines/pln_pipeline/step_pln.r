@@ -30,12 +30,11 @@ while (length(args) > 0) {
   }
 }
 
-# ------------------ Argument Validation ------------------
+# ------------------ Output Directory Handling ------------------
 if (is.null(ids) || is.null(cmp_outdir)) {
   stop("Both --plants and --outdir must be provided.")
 }
 
-# ------------------ Output Directory Handling ------------------
 if (!dir.exists(cmp_outdir)) {
   dir.create(cmp_outdir, recursive = TRUE, showWarnings = FALSE)
 }
@@ -57,7 +56,6 @@ cmp_cmd <- paste(
   "--out", shQuote(cmp_outfile)
 )
 system(cmp_cmd)
-
 message("✓ Step 1 completed. Compounds saved to:", cmp_outfile)
 
 # ------------------ Step 2: Pull Activities for Plants ------------------
@@ -72,5 +70,28 @@ acts_cmd <- paste(
   "--out", shQuote(acts_outfile)
 )
 system(acts_cmd)
+message("✓ Step 2 completed. Activities for plants saved to:", acts_outfile)
 
-message("✓ Step 2 completed. Activities saved to:", acts_outfile)
+# ------------------ Step 3: Pull Activities for Compounds ------------------
+message("[Step 3] Pulling activities associated with compounds")
+
+step3_outfile <- file.path(cmp_outdir, "step3_acts_for_cmp.csv")
+
+# Read compounds from Step 1 output
+cmp_df <- tryCatch(read_csv(cmp_outfile, show_col_types = FALSE), error = function(e) NULL)
+if (is.null(cmp_df) || !"cmp" %in% colnames(cmp_df)) {
+  stop("Step 1 output missing or 'cmp' column not found. Cannot proceed to Step 3.")
+}
+
+cmp_ids <- cmp_df$cmp %>% unique() %>% paste(collapse = "|")
+if (cmp_ids == "") stop("No valid compound identifiers found for Step 3.")
+
+cmp_acts_cmd <- paste(
+  "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
+  "--endpoint", endpoint,
+  "--compound", shQuote(cmp_ids),
+  "--out", shQuote(step3_outfile)
+)
+system(cmp_acts_cmd)
+
+message("✓ Step 3 completed. Activities for compounds saved to:", step3_outfile)
