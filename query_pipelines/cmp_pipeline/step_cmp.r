@@ -12,7 +12,7 @@ log_file <- NULL
 log <- function(message) {
   cat(message, "\n", flush = TRUE)
   if (!is.null(log_file)) {
-    cat(message, "\n", file = log_file, append = TRUE)
+    cat(paste0(format(Sys.time(), "[%Y-%m-%d %H:%M:%S] "), message, "\n"), file = log_file, append = TRUE)
   }
 }
 
@@ -37,7 +37,7 @@ parseArgs <- function(args) {
 }
 
 params <- parseArgs(args)
-if (is.null(params$outdir)) stop("--outdir must be specified")
+if (is.null(params$outdir)) stop("❌ --outdir must be specified")
 
 dir.create(params$outdir, showWarnings = FALSE, recursive = TRUE)
 log_file <- file.path(params$outdir, "pipeline_log.txt")
@@ -52,13 +52,13 @@ resolved_cmp_file <- NULL
 if (!is.null(params$cmp_in_file)) {
   log("→ Using cmp values from --cmp_in_file")
   cmp_df <- read_csv(params$cmp_in_file, show_col_types = FALSE)
-  if (!"cmp" %in% names(cmp_df)) stop("The file provided to --cmp_in_file must contain a 'cmp' column.")
-  cmp_ids <- cmp_df$cmp %>% unique() %>% na.omit() %>% sort()
+  if (!"cmp" %in% names(cmp_df)) stop("❌ The file provided to --cmp_in_file must contain a 'cmp' column.")
+  cmp_ids <- cmp_df$cmp %>% unique() %>% na.omit() %>% trimws() %>% sort()
   resolved_cmp_file <- params$cmp_in_file
 
 } else if (!is.null(params$cmp)) {
   log("→ Using cmp values from --cmp string")
-  cmp_ids <- str_split(params$cmp, "\\|")[[1]] %>% unique() %>% na.omit() %>% sort()
+  cmp_ids <- str_split(params$cmp, "\\|")[[1]] %>% unique() %>% na.omit() %>% trimws() %>% sort()
   resolved_cmp_file <- file.path(params$outdir, "step0_cmp_from_arg.csv")
   write_csv(tibble(cmp = cmp_ids), resolved_cmp_file)
 
@@ -69,10 +69,10 @@ if (!is.null(params$cmp_in_file)) {
   char_cols <- master_df %>% select(where(is.character)) %>% names()
   matches <- master_df %>%
     filter(if_any(all_of(char_cols), ~ str_detect(tolower(.), fixed(search_term, ignore_case = TRUE))))
-  if (nrow(matches) == 0) stop("No matches found for search term:", search_term)
+  if (nrow(matches) == 0) stop(paste("❌ No matches found for search term:", search_term))
   resolved_cmp_file <- file.path(params$outdir, "step0_grep_matched_rows.csv")
   write_csv(matches, resolved_cmp_file)
-  cmp_ids <- matches$cmp %>% unique() %>% na.omit() %>% sort()
+  cmp_ids <- matches$cmp %>% unique() %>% na.omit() %>% trimws() %>% sort()
   log(paste("✓ Found", length(cmp_ids), "unique cmp matches from grep search"))
 
 } else {
@@ -82,9 +82,7 @@ if (!is.null(params$cmp_in_file)) {
 log(paste("✓ Final resolved cmp count:", length(cmp_ids)))
 
 # ------------------------- Utility: Chunking Function -------------------------
-run_chunked_step <- function(
-  input_ids, chunk_size, step_prefix, outdir, step_script, arg_flag, endpoint
-) {
+run_chunked_step <- function(input_ids, chunk_size, step_prefix, outdir, step_script, arg_flag, endpoint) {
   chunk_dir <- file.path(outdir, paste0(step_prefix, "_chunks"))
   dir.create(chunk_dir, showWarnings = FALSE, recursive = TRUE)
   input_chunks <- split(input_ids, ceiling(seq_along(input_ids) / chunk_size))
@@ -100,8 +98,11 @@ run_chunked_step <- function(
       arg_flag, shQuote(chunk_str),
       "--out", shQuote(chunk_out)
     )
-    log(paste("Running", step_prefix, "chunk", i, "→", chunk_out))
-    system(cmd)
+    log(paste("→ Running", step_prefix, "chunk", i, "→", chunk_out))
+    exit_code <- system(cmd)
+    if (exit_code != 0 || !file.exists(chunk_out)) {
+      stop(paste("❌ Chunk", i, "failed or output not found at:", chunk_out))
+    }
     chunk_files[[i]] <- chunk_out
   }
 
@@ -138,7 +139,9 @@ step2_out <- run_chunked_step(
 
 # ------------------------- Step 3: Pull Acts for PLNs -------------------------
 log("[Step 3] Pulling activities for plants (chunked)")
-pln_ids <- read_csv(step1_out, show_col_types = FALSE)$pln_label %>% unique() %>% na.omit()
+pln_df <- read_csv(step1_out, show_col_types = FALSE)
+if (!"pln_label" %in% names(pln_df)) stop("❌ step1 output missing 'pln_label' column.")
+pln_ids <- pln_df$pln_label %>% unique() %>% na.omit()
 step3_out <- run_chunked_step(
   input_ids = pln_ids,
   chunk_size = 250,
@@ -150,7 +153,7 @@ step3_out <- run_chunked_step(
 )
 
 # ------------------------- Completion -------------------------
-log("[Pipeline] Success. Outputs written to:")
+log("[Pipeline] ✅ Success. Outputs written to:")
 log(paste("  - Resolved CMPs:", resolved_cmp_file))
 log(paste("  - Plants for CMPs:", step1_out))
 log(paste("  - Activities for CMPs:", step2_out))
