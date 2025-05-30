@@ -96,7 +96,7 @@ out_file <- file.path(params$outdir, paste0("step1_", input_type, "_acts.csv"))
 cmd <- paste(
   "Rscript", target_script,
   "--endpoint", shQuote(params$endpoint),
-  input_arg_flag, shQuote(input_str),
+  input_arg_flag, input_str,
   "--out", shQuote(out_file)
 )
 
