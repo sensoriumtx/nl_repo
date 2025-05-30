@@ -52,8 +52,8 @@ if (!is.null(params$cmp)) {
 } else if (!is.null(params$smiles)) {
   smiles_vals <- str_split(params$smiles, "\\|")[[1]] %>% unique() %>% na.omit() %>% trimws()
   input_type <- "smiles"
-  target_script <- "scripts/pull_acts_for_specific_smiles.r"
-  input_arg_flag <- "--compound"
+  target_script <- "/sensorium-research-kb/dev/data/query_output/testing/for_nick/Nick_dev/R_Script_Dev/pull_act_for_specific_smiles.r"
+  input_arg_flag <- "--smiles"
   input_str <- paste(smiles_vals, collapse = "|")
 
 } else if (!is.null(params$smiles_file)) {
@@ -62,8 +62,8 @@ if (!is.null(params$cmp)) {
   if (is.na(col)) stop("❌ smiles_file must have a 'smiles' or 'SMILES' column")
   smiles_vals <- smiles_df[[col]] %>% unique() %>% na.omit() %>% trimws()
   input_type <- "smiles"
-  target_script <- "scripts/pull_acts_for_specific_smiles.r"
-  input_arg_flag <- "--compound"
+  target_script <- "/sensorium-research-kb/dev/data/query_output/testing/for_nick/Nick_dev/R_Script_Dev/pull_act_for_specific_smiles.r"
+  input_arg_flag <- "--smiles"
   input_str <- paste(smiles_vals, collapse = "|")
 }
 
