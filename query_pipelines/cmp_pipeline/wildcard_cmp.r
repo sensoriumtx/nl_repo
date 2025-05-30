@@ -78,7 +78,7 @@ log("[Step 1] Pulling plants associated with resolved compounds")
 
 plants_file <- file.path(params$outdir, "step1_plants_for_cmp.csv")
 plant_cmd <- paste(
-  "Rscript scripts/pull_plant_for_cmp_id.r",
+  "Rscript scripts/pull_plant_for_compound_ids.r",
   "--endpoint", params$endpoint,
   "--compound_activity_file", shQuote(resolved_cmp_file),
   "--cmp_id_column", "cmp",
@@ -93,7 +93,7 @@ log("[Step 2] Pulling activities associated with compounds")
 
 cmp_acts_file <- file.path(params$outdir, "step2_acts_for_cmp.csv")
 act_cmd <- paste(
-  "Rscript scripts/pull_acts_for_cmp_id.r",
+  "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
   "--endpoint", params$endpoint,
   "--compound", shQuote(cmp_ids),
   "--out", shQuote(cmp_acts_file)
@@ -110,7 +110,7 @@ plant_labels <- read_csv(plants_file, show_col_types = FALSE)$pln_label %>%
 
 plant_acts_file <- file.path(params$outdir, "step3_acts_for_pln.csv")
 pln_act_cmd <- paste(
-  "Rscript scripts/pull_acts_for_pln_id.r",
+  "Rscript scripts/pull_acts_for_specific_pln.r",
   "--endpoint", params$endpoint,
   "--plants", shQuote(plant_labels),
   "--out", shQuote(plant_acts_file)
