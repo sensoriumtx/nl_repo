@@ -119,7 +119,7 @@ step1_out <- run_chunked_step(
   chunk_size = 250,
   step_prefix = "step1_plants",
   outdir = params$outdir,
-  step_script = "scripts/pull_plant_for_cmp_id.r",
+  step_script = "scripts/pull_plant_for_compound_ids.r",
   arg_flag = "--compound",
   endpoint = params$endpoint
 )
@@ -131,7 +131,7 @@ step2_out <- run_chunked_step(
   chunk_size = 250,
   step_prefix = "step2_acts",
   outdir = params$outdir,
-  step_script = "scripts/pull_acts_for_cmp_id.r",
+  step_script = "scripts/pull_acts_for_specific_cmp_ids.r",
   arg_flag = "--compound",
   endpoint = params$endpoint
 )
@@ -144,7 +144,7 @@ step3_out <- run_chunked_step(
   chunk_size = 250,
   step_prefix = "step3_acts",
   outdir = params$outdir,
-  step_script = "scripts/pull_acts_for_pln_id.r",
+  step_script = "scripts/pull_acts_for_specific_pln.r",
   arg_flag = "--plants",
   endpoint = params$endpoint
 )
