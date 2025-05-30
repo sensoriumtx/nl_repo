@@ -25,7 +25,7 @@ while (i <= length(args)) {
   i <- i + 1
 }
 
-# -------------- Helper to read file and extract column values --------------
+# -------------- Helper to read and collapse file column --------------
 read_compound_file_column <- function(file_path, column_name) {
   message(paste0("📄 Reading column '", column_name, "' from: ", file_path))
   if (grepl("\\.tsv$", file_path, ignore.case = TRUE)) {
@@ -40,7 +40,7 @@ read_compound_file_column <- function(file_path, column_name) {
   return(values)
 }
 
-# ------------------ Determine Input ------------------
+# ------------------ Determine Input Source ------------------
 input_type <- NULL
 input_str <- NULL
 target_script <- NULL
@@ -49,37 +49,35 @@ input_arg_flag <- NULL
 if (!is.null(params$cmp)) {
   cmp_vals <- str_split(params$cmp, "\\|")[[1]] %>% unique() %>% na.omit() %>% trimws()
   input_type <- "cmp"
-  target_script <- "scripts/pull_acts_for_specific_cmp_ids.r"
-  input_arg_flag <- "--compound"
   input_str <- paste(cmp_vals, collapse = "|")
+  input_arg_flag <- "--compound"
+  target_script <- "scripts/pull_acts_for_specific_cmp_ids.r"
 
 } else if (!is.null(params$cmp_file)) {
   cmp_vals <- read_compound_file_column(params$cmp_file, "cmp")
   input_type <- "cmp"
-  target_script <- "scripts/pull_acts_for_specific_cmp_ids.r"
-  input_arg_flag <- "--compound"
   input_str <- paste(cmp_vals, collapse = "|")
+  input_arg_flag <- "--compound"
+  target_script <- "scripts/pull_acts_for_specific_cmp_ids.r"
 
 } else if (!is.null(params$smiles)) {
   smiles_vals <- str_split(params$smiles, "\\|")[[1]] %>% unique() %>% na.omit() %>% trimws()
   input_type <- "smiles"
-  target_script <- "/sensorium-research-kb/dev/data/query_output/testing/for_nick/Nick_dev/R_Script_Dev/pull_act_for_specific_smiles.r"
-  input_arg_flag <- "--smiles"
   input_str <- paste(smiles_vals, collapse = "|")
+  input_arg_flag <- "--smiles"
+  target_script <- "/sensorium-research-kb/dev/data/query_output/testing/for_nick/Nick_dev/R_Script_Dev/pull_act_for_specific_smiles.r"
 
 } else if (!is.null(params$smiles_file)) {
   smiles_vals <- read_compound_file_column(params$smiles_file, "isoSmiles")
   input_type <- "smiles"
-  target_script <- "/sensorium-research-kb/dev/data/query_output/testing/for_nick/Nick_dev/R_Script_Dev/pull_act_for_specific_smiles.r"
-  input_arg_flag <- "--smiles"
   input_str <- paste(smiles_vals, collapse = "|")
-}
+  input_arg_flag <- "--smiles"
+  target_script <- "/sensorium-research-kb/dev/data/query_output/testing/for_nick/Nick_dev/R_Script_Dev/pull_act_for_specific_smiles.r"
 
-if (is.null(input_str) || is.null(target_script)) {
+} else {
   stop("❌ No valid input provided. Please use --cmp, --cmp_file, --smiles, or --smiles_file.")
 }
 
-# 🧪 DEBUG: Print input string being passed
 cat("✅ Collapsed input string:\n", input_str, "\n")
 
 # ------------------ Build & Run Command ------------------
@@ -92,7 +90,7 @@ cmd <- paste(
   "--out", shQuote(out_file)
 )
 
-cat("TRUE→ Running command:\n", cmd, "\n")
+cat("→ Running command:\n", cmd, "\n")
 exit_code <- system(cmd)
 
 if (exit_code != 0 || !file.exists(out_file)) {
