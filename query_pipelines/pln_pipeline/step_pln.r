@@ -77,19 +77,25 @@ message("[Step 3] Pulling activities associated with compounds")
 
 step3_outfile <- file.path(cmp_outdir, "step3_acts_for_cmp.csv")
 
-# Read compounds from Step 1 output
+# Read Step 1 output and extract cmp IDs
 cmp_df <- tryCatch(read_csv(cmp_outfile, show_col_types = FALSE), error = function(e) NULL)
 if (is.null(cmp_df) || !"cmp" %in% colnames(cmp_df)) {
   stop("Step 1 output missing or 'cmp' column not found. Cannot proceed to Step 3.")
 }
 
-cmp_ids <- cmp_df$cmp %>% unique() %>% paste(collapse = "|")
-if (cmp_ids == "") stop("No valid compound identifiers found for Step 3.")
+cmp_ids_vector <- cmp_df$cmp %>% unique() %>% sort()
+cmp_ids_string <- paste(cmp_ids_vector, collapse = "|")
+if (cmp_ids_string == "") stop("No valid compound identifiers found for Step 3.")
 
+# OPTIONAL: save to a temp file if needed later (in case Step 3 script prefers file-based input)
+# temp_ids_file <- file.path(cmp_outdir, "step3_cmp_ids.txt")
+# writeLines(cmp_ids_string, temp_ids_file)
+
+# Execute Step 3 normally using the long string (watch for shell limits)
 cmp_acts_cmd <- paste(
   "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
   "--endpoint", endpoint,
-  "--compound", shQuote(cmp_ids),
+  "--compound", shQuote(cmp_ids_string),
   "--out", shQuote(step3_outfile)
 )
 system(cmp_acts_cmd)
