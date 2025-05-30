@@ -8,6 +8,50 @@ suppressMessages(source("scripts/common.r"))
 
 options(scipen = 100, digits = 4)
 
+# ------------------ Chunked Step Function ------------------
+run_chunked_step <- function(
+  step_name,
+  input_ids,
+  step_script,
+  arg_flag,
+  chunk_size = 300,
+  endpoint = NULL,
+  output_dir
+) {
+  message("[", toupper(step_name), "] Starting chunked execution...")
+
+  chunk_dir <- file.path(output_dir, paste0(step_name, "_chunks"))
+  dir.create(chunk_dir, recursive = TRUE, showWarnings = FALSE)
+
+  input_chunks <- split(input_ids, ceiling(seq_along(input_ids) / chunk_size))
+  chunk_files <- list()
+
+  for (i in seq_along(input_chunks)) {
+    chunk_vals <- input_chunks[[i]]
+    chunk_str <- paste(chunk_vals, collapse = "|")
+    chunk_out <- file.path(chunk_dir, sprintf("%s_chunk_%03d.csv", step_name, i))
+
+    cmd <- paste(
+      "Rscript", step_script,
+      if (!is.null(endpoint)) paste("--endpoint", endpoint) else NULL,
+      arg_flag, shQuote(chunk_str),
+      "--out", shQuote(chunk_out)
+    )
+
+    message("Running chunk ", i, " (", length(chunk_vals), " IDs): ", chunk_out)
+    system(cmd)
+    chunk_files[[i]] <- chunk_out
+  }
+
+  # Merge chunk results
+  final_outfile <- file.path(output_dir, paste0(step_name, "_final.csv"))
+  final_df <- bind_rows(lapply(chunk_files, read_csv, show_col_types = FALSE))
+  write_csv(final_df, final_outfile)
+  message("[", toupper(step_name), "] Completed. Merged file saved to: ", final_outfile)
+
+  return(final_outfile)
+}
+
 # ------------------ Argument Parsing ------------------
 args <- commandArgs(TRUE)
 
@@ -30,11 +74,11 @@ while (length(args) > 0) {
   }
 }
 
-# ------------------ Output Directory Handling ------------------
 if (is.null(ids) || is.null(cmp_outdir)) {
   stop("Both --plants and --outdir must be provided.")
 }
 
+# ------------------ Output Directory Setup ------------------
 if (!dir.exists(cmp_outdir)) {
   dir.create(cmp_outdir, recursive = TRUE, showWarnings = FALSE)
 }
@@ -44,61 +88,50 @@ message("✓ Output directory created or confirmed at: ", cmp_outdir)
 message("[Step 1] Pulling compounds associated with plants")
 
 plant_input <- str_split(ids, "\\|")[[1]] %>% unique()
-pln_ids <- paste(plant_input, collapse = "|")
-if (is.null(pln_ids) || pln_ids == "") stop("No valid PLN identifiers found")
+if (length(plant_input) == 0) stop("No valid plant identifiers provided.")
 
-cmp_outfile <- file.path(cmp_outdir, "step1_cmp_for_pln.csv")
-
-cmp_cmd <- paste(
-  "Rscript scripts/pull_cmp_for_pln.r",
-  "--endpoint", endpoint,
-  "--plants", shQuote(pln_ids),
-  "--out", shQuote(cmp_outfile)
+step1_outfile <- run_chunked_step(
+  step_name = "step1",
+  input_ids = plant_input,
+  step_script = "scripts/pull_cmp_for_pln.r",
+  arg_flag = "--plants",
+  chunk_size = 300,
+  endpoint = endpoint,
+  output_dir = cmp_outdir
 )
-system(cmp_cmd)
-message("✓ Step 1 completed. Compounds saved to:", cmp_outfile)
 
 # ------------------ Step 2: Pull Activities for Plants ------------------
 message("[Step 2] Pulling activities associated with plants")
 
-acts_outfile <- file.path(cmp_outdir, "step2_acts_for_pln.csv")
-
-acts_cmd <- paste(
-  "Rscript scripts/pull_acts_for_specific_pln.r",
-  "--endpoint", endpoint,
-  "--plants", shQuote(pln_ids),
-  "--out", shQuote(acts_outfile)
+step2_outfile <- run_chunked_step(
+  step_name = "step2",
+  input_ids = plant_input,
+  step_script = "scripts/pull_acts_for_specific_pln.r",
+  arg_flag = "--plants",
+  chunk_size = 300,
+  endpoint = endpoint,
+  output_dir = cmp_outdir
 )
-system(acts_cmd)
-message("✓ Step 2 completed. Activities for plants saved to:", acts_outfile)
 
 # ------------------ Step 3: Pull Activities for Compounds ------------------
 message("[Step 3] Pulling activities associated with compounds")
 
-step3_outfile <- file.path(cmp_outdir, "step3_acts_for_cmp.csv")
-
-# Read Step 1 output and extract unique cmp IDs
-cmp_df <- tryCatch(read_csv(cmp_outfile, show_col_types = FALSE), error = function(e) NULL)
+cmp_df <- tryCatch(read_csv(step1_outfile, show_col_types = FALSE), error = function(e) NULL)
 if (is.null(cmp_df) || !"cmp" %in% colnames(cmp_df)) {
   stop("Step 1 output missing or 'cmp' column not found. Cannot proceed to Step 3.")
 }
 
-# Extract unique cmp values and collapse into a single string
-cmp_ids_vector <- cmp_df$cmp %>% unique() %>% sort()
-cmp_ids_string <- paste(cmp_ids_vector, collapse = "|")
-if (cmp_ids_string == "") stop("No valid compound identifiers found for Step 3.")
+cmp_ids <- cmp_df$cmp %>% unique() %>% sort()
+if (length(cmp_ids) == 0) stop("No valid compound identifiers found for Step 3.")
 
-# Write collapsed string to a file
-cmp_ids_file <- file.path(cmp_outdir, "step3_cmp_ids.txt")
-writeLines(cmp_ids_string, cmp_ids_file)
-
-# Construct command using file-based compound input
-cmp_acts_cmd <- paste(
-  "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
-  "--endpoint", endpoint,
-  "--compound_file", shQuote(cmp_ids_file),
-  "--out", shQuote(step3_outfile)
+step3_outfile <- run_chunked_step(
+  step_name = "step3",
+  input_ids = cmp_ids,
+  step_script = "scripts/pull_acts_for_specific_cmp_ids.r",
+  arg_flag = "--compound",
+  chunk_size = 300,
+  endpoint = endpoint,
+  output_dir = cmp_outdir
 )
-system(cmp_acts_cmd)
 
-message("✓ Step 3 completed. Activities for compounds saved to:", step3_outfile)
+message("All steps completed successfully.")
