@@ -37,7 +37,7 @@ if (!is.null(params$cmp)) {
   cmp_vals <- str_split(params$cmp, "\\|")[[1]] %>% unique() %>% na.omit() %>% trimws()
   input_type <- "cmp"
   target_script <- "scripts/pull_acts_for_specific_cmp_ids.r"
-  input_arg_flag <- "--compound"
+  input_arg_flag <- "--cmp"
   input_str <- paste(cmp_vals, collapse = "|")
 
 } else if (!is.null(params$cmp_file)) {
@@ -46,7 +46,7 @@ if (!is.null(params$cmp)) {
   cmp_vals <- cmp_df$cmp %>% unique() %>% na.omit() %>% trimws()
   input_type <- "cmp"
   target_script <- "scripts/pull_acts_for_specific_cmp_ids.r"
-  input_arg_flag <- "--compound"
+  input_arg_flag <- "--cmp"
   input_str <- paste(cmp_vals, collapse = "|")
 
 } else if (!is.null(params$smiles)) {
