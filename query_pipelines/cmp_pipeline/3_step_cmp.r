@@ -43,7 +43,7 @@ if (!is.null(params$cmp)) {
   df <- read_csv(params$cmp_file, show_col_types = FALSE)
   if (!"cmp" %in% names(df)) stop("❌ cmp_file must have a column named 'cmp'")
   compound_vals <- df$cmp %>% unique() %>% na.omit() %>% trimws()
-  input_type <- "cmp"
+  input_type <- "cmp_file"
   target_script <- "scripts/pull_acts_for_specific_cmp_ids.r"
 
 } else if (!is.null(params$smiles)) {
@@ -55,7 +55,7 @@ if (!is.null(params$cmp)) {
   df <- read_csv(params$smiles_file, show_col_types = FALSE)
   if (!"isoSmiles" %in% names(df)) stop("❌ smiles_file must have a column named 'isoSmiles'")
   compound_vals <- df$isoSmiles %>% unique() %>% na.omit() %>% trimws()
-  input_type <- "smiles"
+  input_type <- "smiles_file"
   target_script <- "/sensorium-research-kb/dev/data/query_output/testing/for_nick/Nick_dev/R_Script_Dev/pull_act_for_specific_smiles.r"
 
 } else {
