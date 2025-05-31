@@ -49,7 +49,7 @@ q = paste(sparql_prefix, paste0(
     ?pln sen:hasUse ?use .
 
         Optional{
-            ?use rdfs:label ?use_label .
+            ?use rdfs:label ?use_label
         }
     
     }
