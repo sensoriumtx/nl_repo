@@ -43,10 +43,14 @@ message(paste0("endpoint: ", endpoint))
 # split cmps
 q = paste(sparql_prefix, paste0(
 "Select distinct * Where {
-    
-    ?pln sen:lcLabel ?pln_label .
-    OPTIONAL { ?pln rdfs:subClassOf|sen:has_taxid ?taxon } 
-    bind(strafter(str(?taxon),str(ncbi_taxon:)) as ?taxid) .
+
+    ?pln sen:lcLabel|(sen:has_taxid/sen:lcLabel) ?label .
+    ?pln rdf:type sen:taxon .
+    ?pln sen:hasUse ?use .
+
+        Optional{
+            ?use rdfs:label ?use_label .
+        }
     
     }
 
