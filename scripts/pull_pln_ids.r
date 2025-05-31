@@ -46,9 +46,9 @@ q = paste(sparql_prefix, paste0(
 
     ?pln sen:lcLabel|(sen:has_taxid/sen:lcLabel) ?label .
     ?pln rdf:type sen:taxon .
-    ?pln sen:hasUse ?use .
 
         Optional{
+            ?pln sen:hasUse ?use .
             ?use rdfs:label ?use_label
         }
     
