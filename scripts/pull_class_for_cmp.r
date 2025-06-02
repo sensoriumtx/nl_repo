@@ -1,4 +1,8 @@
 #!/usr/bin/env Rscript
+
+### Does not work. SPARQL query not extracting correct identifier.
+
+
 options(warn = -1)  # suppress all warnings
 suppressMessages(library(tidyverse))
 suppressMessages(library(parallel))
