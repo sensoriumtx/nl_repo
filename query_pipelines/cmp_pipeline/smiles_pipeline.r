@@ -65,7 +65,7 @@ if (!is.null(params$smiles_file)) {
 }
 
 pull_smiles_cmd <- paste(
-  "Rscript scripts/pull_act_for_smiles.r",
+  "Rscript Nick_dev/sensgit/query_pipelines/cmp_pipeline/smiles_pipeline.r",
   "--endpoint", params$endpoint,
   "--smiles", shQuote(smiles_vec),
   "--out", shQuote(resolved_cmp_file)
