@@ -1,5 +1,8 @@
 #!/usr/bin/env Rscript
 
+# --- Fix for Java stack overflow ---
+options(java.parameters = "-Xss2m")  # Prevents StackOverflowError in rcdk calls
+
 # --- Install Required Packages ---
 packages <- c("argparse", "rcdk", "rcdklibs", "rJava", "dplyr", "readr")
 for (pkg in packages) {
@@ -78,13 +81,13 @@ process_smiles_csv <- function(input_file, output_file, smiles_column = "primary
     }
   }
 
-  # Prevent writing to directory instead of file
+  # Prevent writing to a directory path
   if (dir.exists(output_file)) {
-    stop("ERROR: The --out path appears to be a directory. Please specify a full file name like 'output.csv'")
+    stop("ERROR: The --out path is a directory. Please provide a full file name like 'output.csv'")
   }
 
   write_csv(df, output_file)
-  cat("Output saved to:", output_file, "\n")
+  cat("✅ Output saved to:", output_file, "\n")
 }
 
 # Process inline SMILES string(s)
@@ -132,6 +135,6 @@ if (!is.null(args$smiles)) {
 } else if (!is.null(args$in_file) && !is.null(args$out_file)) {
   process_smiles_csv(args$in_file, args$out_file, args$smiles_column)
 } else {
-  cat("ERROR: Provide either --smiles or both --in and --out paths.\n")
+  cat("❌ ERROR: Provide either --smiles or both --in and --out paths.\n")
   parser$print_help()
 }
