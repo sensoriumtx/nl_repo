@@ -42,18 +42,11 @@ message(paste0("endpoint: ", endpoint))
 
 # split cmps
 q = paste(sparql_prefix, paste0(
-"Select distinct * Where {
-
-    ?pln sen:lcLabel|(sen:has_taxid/sen:lcLabel) ?label .
-    ?pln rdf:type sen:taxon .
-
-        Optional{
-            ?pln sen:hasUse ?use .
-            ?use rdfs:label ?use_label
-        }
-    
+"SELECT distinct ?pln ?pln_label WHERE { 
+    ?pln a sen:taxon .
+    ?use sen:inPlant ?pln .
+    ?pln (sen:lcLabel) ?pln_label .     
     }
-
 "))
 df.cmp_ids <- fix_sparql_ids(SPARQL(endpoint, q, ns=prefix, extra=query_options, format='json')$results)
 
