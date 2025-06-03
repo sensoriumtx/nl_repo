@@ -57,17 +57,16 @@ resolved_cmp_file <- file.path(params$outdir, "step0_acts_for_smiles.csv")
 if (!is.null(params$smiles_file)) {
   smiles_data <- read_csv(params$smiles_file, show_col_types = FALSE)
   if (is.null(params$smiles_column)) stop("--smiles_column must be specified if --smiles_file is used")
-  smiles_vec <- smiles_data[[params$smiles_column]] %>% unique() %>% na.omit() %>% paste(collapse = "|")
-} else if (!is.null(params$smiles)) {
-  smiles_vec <- params$smiles
-} else {
-  stop("You must provide either --smiles or --smiles_file")
+  if (!params$smiles_column %in% names(smiles_data)) stop(paste("Column", params$smiles_column, "not found in SMILES file"))
+  params$smiles <- smiles_data[[params$smiles_column]] %>% unique() %>% na.omit() %>% paste(collapse = "|")
 }
 
+if (is.null(params$smiles)) stop("You must provide either --smiles or a valid --smiles_file and --smiles_column")
+
 pull_smiles_cmd <- paste(
-  "Rscript Nick_dev/sensgit/scripts/pull_act_for_smiles.r",
+  "Rscript scripts/pull_act_for_smiles.r",
   "--endpoint", params$endpoint,
-  "--smiles", shQuote(smiles_vec),
+  "--smiles", shQuote(params$smiles),
   "--out", shQuote(resolved_cmp_file)
 )
 
