@@ -1,6 +1,6 @@
 # Nick Laskowski
 # Version 1.7
-# SMILES-Based Semantic Association Pipeline — Steps 0, 1, and 3 Only
+# SMILES-Based Semantic Association Pipeline 
 
 #!/usr/bin/env Rscript
 
