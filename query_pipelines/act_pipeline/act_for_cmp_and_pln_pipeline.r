@@ -215,20 +215,6 @@ step5_out <- file.path(params$outdir, "deliverable.csv")
 write_csv(deliverable_df, step5_out)
 log("[Step 5] Complete: Deliverable File with Scoring Saved")
 
-# --------- Step 6: Run Classification on Compounds -----------------------------
-log("[Step 6] Running Classification Query for Compounds")
-
-step6_out <- file.path(params$outdir, "final_deliverable.csv")
-cmd6 <- paste(
-  "Rscript /sensorium-research-kb/dev/data/query_output/testing/for_nick/scripts/pull_class_for_cmp.r",
-  "--endpoint", params$endpoint,
-  "--in", shQuote(step5_out),
-  "--out", shQuote(step6_out)
-)
-system(cmd6)
-
-log("[Step 6] Complete: Final Deliverable with Classifications Saved")
-
 # Patch cmp_label if missing using cmpLabel from classification output
 if (file.exists(step6_out)) {
   final_classified_df <- read_csv(step6_out, show_col_types = FALSE)
