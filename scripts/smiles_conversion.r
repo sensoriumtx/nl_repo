@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
-install.packages(argparse)
-install.packages(rcdk)
-install.packages(dplyr)
-install.packages(readr)
+install.packages("argparse")
+install.packages("rcdk")
+install.packages("dplyr")
+install.packages("readr")
 library(argparse)
 library(rcdk)
 library(dplyr)
