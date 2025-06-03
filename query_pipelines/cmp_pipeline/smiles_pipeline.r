@@ -65,7 +65,7 @@ if (!is.null(params$smiles_file)) {
 }
 
 pull_smiles_cmd <- paste(
-  "Rscript scripts/pull_act_for_smiles.r",
+  "Rscript Nick_dev/sensgit/scripts/pull_act_for_smiles.r",
   "--endpoint", params$endpoint,
   "--smiles", shQuote(smiles_vec),
   "--out", shQuote(resolved_cmp_file)
@@ -98,7 +98,7 @@ cmp_ids <- read_csv(resolved_cmp_file, show_col_types = FALSE)$cmp %>%
 
 cmp_acts_file <- file.path(params$outdir, "step2_acts_for_cmp.csv")
 act_cmd <- paste(
-  "Rscript Nick_dev/sensgit/scripts/pull_act_for_smiles.r",
+  "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
   "--endpoint", params$endpoint,
   "--compound", shQuote(cmp_ids),
   "--out", shQuote(cmp_acts_file)
