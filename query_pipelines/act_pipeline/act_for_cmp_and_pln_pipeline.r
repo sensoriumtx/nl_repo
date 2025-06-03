@@ -213,15 +213,15 @@ if (!is.null(params$scoring)) {
 
 step5_out <- file.path(params$outdir, "deliverable.csv")
 write_csv(deliverable_df, step5_out)
-log("[Step 5] Complete: Deliverable File with Scoring Saved")
+log("[Step 5] Complete: Deliverable File with Scoring and Classification Saved")
 
 # Patch cmp_label if missing using cmpLabel from classification output
 if (file.exists(step6_out)) {
-  final_classified_df <- read_csv(step6_out, show_col_types = FALSE)
+  final_classified_df <- read_csv(step5_out, show_col_types = FALSE)
   if ("cmpLabel" %in% names(final_classified_df)) {
     final_classified_df <- final_classified_df %>%
       mutate(cmp_label = coalesce(cmp_label, cmpLabel))
-    write_csv(final_classified_df, step6_out)
+    write_csv(final_classified_df, step5_out)
     log("[Step 6] Patched: Missing cmp_label Values Mapped")
   }
 }
