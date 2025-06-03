@@ -64,7 +64,7 @@ if (!is.null(params$smiles_file)) {
 if (is.null(params$smiles)) stop("You must provide either --smiles or a valid --smiles_file and --smiles_column")
 
 pull_smiles_cmd <- paste(
-  "Rscript Nick_Dev/sensgit/scripts/pull_act_for_smiles.r",
+  "Rscript Nick_dev/sensgit/scripts/pull_act_for_smiles.r",
   "--endpoint", params$endpoint,
   "--smiles", shQuote(params$smiles),
   "--out", shQuote(resolved_cmp_file)
