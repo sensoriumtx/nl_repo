@@ -1,6 +1,6 @@
 # Nick Laskowski
-# Version 1.2
-# SMILES-Based Semantic Association Pipeline
+# Version 1.3
+# SMILES-Based Semantic Association Pipeline — With Proper Stepwise Output Management
 
 #!/usr/bin/env Rscript
 
@@ -65,7 +65,7 @@ if (!is.null(params$smiles_file)) {
 }
 
 pull_smiles_cmd <- paste(
-  "Rscript Nick_dev/sensgit/query_pipelines/cmp_pipeline/smiles_pipeline.r",
+  "Rscript scripts/pull_act_for_smiles.r",
   "--endpoint", params$endpoint,
   "--smiles", shQuote(smiles_vec),
   "--out", shQuote(resolved_cmp_file)
@@ -73,7 +73,7 @@ pull_smiles_cmd <- paste(
 
 system(pull_smiles_cmd)
 if (!file.exists(resolved_cmp_file)) stop("Step 0 failed: SMILES activities output not found.")
-log("[Step 0] Complete")
+log(paste("[Step 0] Complete. Output written to:", resolved_cmp_file))
 
 # ------------------------- Step 1: Pull Plants for CMP -------------------------
 log("[Step 1] Pulling plants associated with resolved compounds")
@@ -88,7 +88,7 @@ plant_cmd <- paste(
 )
 system(plant_cmd)
 if (!file.exists(plants_file)) stop("Step 1 failed: plant output not found.")
-log("[Step 1] Complete")
+log(paste("[Step 1] Complete. Output written to:", plants_file))
 
 # ------------------------- Step 2: Pull Acts for CMP -------------------------
 log("[Step 2] Pulling activities associated with compounds")
@@ -105,7 +105,7 @@ act_cmd <- paste(
 )
 system(act_cmd)
 if (!file.exists(cmp_acts_file)) stop("Step 2 failed: cmp activities output not found.")
-log("[Step 2] Complete")
+log(paste("[Step 2] Complete. Output written to:", cmp_acts_file))
 
 # ------------------------- Step 3: Pull Acts for PLN -------------------------
 log("[Step 3] Pulling activities associated with plants")
@@ -122,7 +122,7 @@ pln_act_cmd <- paste(
 )
 system(pln_act_cmd)
 if (!file.exists(plant_acts_file)) stop("Step 3 failed: plant activities output not found.")
-log("[Step 3] Complete")
+log(paste("[Step 3] Complete. Output written to:", plant_acts_file))
 
 # ------------------------- Completion -------------------------
 log("[Pipeline] Success. Outputs written to:")
