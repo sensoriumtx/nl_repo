@@ -22,8 +22,8 @@ is_isomeric_smiles <- function(smiles) {
   tryCatch({
     mol <- parse.smiles(smiles)[[1]]
     if (is.null(mol)) return(list(is_isomeric = FALSE, status = "Invalid SMILES"))
-    canonical <- generate.smiles(mol, canonical = TRUE)
-    isomeric <- generate.smiles(mol, canonical = TRUE, do.isomeric = TRUE)
+    canonical <- get.smiles(mol, flavor = smiles.flavors(c("Canonical")))
+    isomeric <- get.smiles(mol, flavor = smiles.flavors(c("Canonical", "Isomeric")))
     return(list(is_isomeric = canonical != isomeric, status = "Valid"))
   }, error = function(e) list(is_isomeric = FALSE, status = paste("Error:", e$message)))
 }
@@ -32,7 +32,7 @@ standardize_smiles <- function(smiles) {
   tryCatch({
     mol <- parse.smiles(smiles)[[1]]
     if (is.null(mol)) return(list(smiles = NA, status = "Invalid SMILES"))
-    iso <- generate.smiles(mol, canonical = TRUE, do.isomeric = TRUE)
+    iso <- get.smiles(mol, flavor = smiles.flavors(c("Canonical", "Isomeric")))
     return(list(smiles = iso, status = "Converted"))
   }, error = function(e) list(smiles = NA, status = paste("Error:", e$message)))
 }
