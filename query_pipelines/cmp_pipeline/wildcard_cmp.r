@@ -1,6 +1,6 @@
 # Nick Laskowski
-# Version 1.0
-# Wilcard Search to Semantic Association.
+# Version 1.1
+# Wildcard Search to Semantic Association — Robust Special Character Support
 
 #!/usr/bin/env Rscript
 
@@ -52,24 +52,33 @@ log("[Step 0] Performing wildcard search across all string fields in master file
 if (is.null(params$in_file)) stop("You must provide --in_file to search from a master CSV.")
 if (is.null(params$search)) stop("You must provide a search string using --search")
 
-search_term <- tolower(params$search)
-master_df <- read_csv(params$in_file, show_col_types = FALSE)
+search_term <- tolower(params$search) %>% str_trim()
+log(paste("Search string (normalized):", search_term))
+
+master_df <- read_csv(params$in_file, show_col_types = FALSE, guess_max = 10000)
 
 # Identify all character/text columns
 char_cols <- master_df %>%
   select(where(is.character)) %>%
   names()
 
-# Filter rows where any string column contains the search term
+# Filter rows where any string column contains the search term (fixed string match)
 matches <- master_df %>%
   filter(if_any(all_of(char_cols), ~ str_detect(tolower(.), fixed(search_term, ignore_case = TRUE))))
 
-if (nrow(matches) == 0) stop("No matches found for search term:", search_term)
+# Optional switch to regex-based search:
+# escaped_search <- str_replace_all(search_term, "([][{}()+*?.\\^$|])", "\\\\\\1")
+# matches <- master_df %>%
+#   filter(if_any(all_of(char_cols), ~ str_detect(tolower(.), regex(escaped_search, ignore_case = TRUE))))
 
-# Output full matched rows and extract unique cmp
+if (nrow(matches) == 0) stop(paste("No matches found for search term:", search_term))
+
+# Output matched rows
 resolved_cmp_file <- file.path(params$outdir, "step0_wildcard_matched_rows.csv")
 write_csv(matches, resolved_cmp_file)
 
+# Ensure 'cmp' column exists
+if (!"cmp" %in% colnames(matches)) stop("The column 'cmp' must be present in the matched data.")
 cmp_ids <- matches$cmp %>% unique() %>% na.omit() %>% sort() %>% paste(collapse = "|")
 if (cmp_ids == "") stop("No valid cmp IDs found in matched rows.")
 
