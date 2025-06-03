@@ -1,5 +1,5 @@
 # Nick Laskowski
-# Version 1.4
+# Version 1.5
 # SMILES-Based Semantic Association Pipeline — With Proper Stepwise Output Management and Internal Join Handling
 
 #!/usr/bin/env Rscript
@@ -58,7 +58,9 @@ if (!is.null(params$smiles_file)) {
   smiles_data <- read_csv(params$smiles_file, show_col_types = FALSE)
   if (is.null(params$smiles_column)) stop("--smiles_column must be specified if --smiles_file is used")
   if (!params$smiles_column %in% names(smiles_data)) stop(paste("Column", params$smiles_column, "not found in SMILES file"))
-  params$smiles <- smiles_data[[params$smiles_column]] %>% unique() %>% na.omit() %>% paste(collapse = "|")
+  smiles_vec <- smiles_data[[params$smiles_column]] %>% unique() %>% na.omit()
+  if (length(smiles_vec) == 0) stop("No valid SMILES found in specified column")
+  params$smiles <- paste(smiles_vec, collapse = "|")
 }
 
 if (is.null(params$smiles)) stop("You must provide either --smiles or a valid --smiles_file and --smiles_column")
