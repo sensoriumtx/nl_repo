@@ -1,6 +1,6 @@
 # Nick Laskowski
 # Version 1.0
-# Wilcard Search to Semantic Association.
+# Wildcard PLN Search Pipeline
 
 #!/usr/bin/env Rscript
 
@@ -46,16 +46,18 @@ dir.create(params$outdir, showWarnings = FALSE, recursive = TRUE)
 log_file <- file.path(params$outdir, "pipeline_log.txt")
 cat("Pipeline Log\n==============\n", file = log_file)
 
-# ------------------------- Step 0: Wildcard-style CMP Identifier Search -------------------------
-log("[Step 0] Performing wildcard search across all string fields in master file")
+# ------------------------- Step 0: Search in PLN Master -------------------------
+log("[Step 0] Performing wildcard search across all string fields in PLN master file")
 
 if (is.null(params$in_file)) stop("You must provide --in_file to search from a master CSV.")
 if (is.null(params$search)) stop("You must provide a search string using --search")
 
-search_term <- tolower(params$search)
-master_df <- read_csv(params$in_file, show_col_types = FALSE)
+search_term <- tolower(params$search) %>% str_trim()
+log(paste("Search string (normalized):", search_term))
 
-# Identify all character/text columns
+master_df <- read_csv(params$in_file, show_col_types = FALSE, guess_max = 10000)
+
+# Identify all character columns
 char_cols <- master_df %>%
   select(where(is.character)) %>%
   names()
@@ -64,36 +66,40 @@ char_cols <- master_df %>%
 matches <- master_df %>%
   filter(if_any(all_of(char_cols), ~ str_detect(tolower(.), fixed(search_term, ignore_case = TRUE))))
 
-if (nrow(matches) == 0) stop("No matches found for search term:", search_term)
+if (nrow(matches) == 0) stop(paste("No matches found for search term:", search_term))
 
-# Output full matched rows and extract unique cmp
-resolved_cmp_file <- file.path(params$outdir, "step0_wildcard_matched_rows.csv")
-write_csv(matches, resolved_cmp_file)
+resolved_pln_file <- file.path(params$outdir, "step0_wildcard_matched_rows.csv")
+write_csv(matches, resolved_pln_file)
 
-cmp_ids <- matches$cmp %>% unique() %>% na.omit() %>% sort() %>% paste(collapse = "|")
-if (cmp_ids == "") stop("No valid cmp IDs found in matched rows.")
+# Ensure required column
+if (!"pln_label" %in% colnames(matches)) stop("The column 'pln_label' must be present in matched data.")
+pln_labels <- matches$pln_label %>% unique() %>% na.omit() %>% paste(collapse = "|")
 
 log(paste("[Step 0] Match complete. Found", nrow(matches), "rows matching:", search_term))
-log(paste("Unique cmp IDs:", str_count(cmp_ids, "sen:")))
-log(paste("Matched rows saved to:", resolved_cmp_file))
+log(paste("Unique PLN labels:", str_count(pln_labels, "\\|") + 1))
+log(paste("Matched rows saved to:", resolved_pln_file))
 
-# ------------------------- Step 1: Pull Plants for CMP -------------------------
-log("[Step 1] Pulling plants associated with resolved compounds")
+# ------------------------- Step 1: Pull Compounds for PLN -------------------------
+log("[Step 1] Pulling compounds associated with matched plants")
 
-plants_file <- file.path(params$outdir, "step1_plants_for_cmp.csv")
-plant_cmd <- paste(
-  "Rscript scripts/pull_plant_for_compound_ids.r",
+compounds_file <- file.path(params$outdir, "step1_compounds_for_pln.csv")
+cmp_cmd <- paste(
+  "Rscript scripts/pull_cmp_for_pln.r",
   "--endpoint", params$endpoint,
-  "--compound_activity_file", shQuote(resolved_cmp_file),
-  "--cmp_id_column", "cmp",
-  "--out", shQuote(plants_file)
+  "--plants", shQuote(pln_labels),
+  "--out", shQuote(compounds_file)
 )
-system(plant_cmd)
-if (!file.exists(plants_file)) stop("Step 1 failed: plant output not found.")
+system(cmp_cmd)
+if (!file.exists(compounds_file)) stop("Step 1 failed: compound output not found.")
 log("[Step 1] Complete")
 
-# ------------------------- Step 2: Pull Acts for CMP -------------------------
+# ------------------------- Step 2: Pull Activities for CMP -------------------------
 log("[Step 2] Pulling activities associated with compounds")
+
+cmp_df <- read_csv(compounds_file, show_col_types = FALSE)
+if (!"cmp" %in% colnames(cmp_df)) stop("The column 'cmp' must be present in compounds file.")
+cmp_ids <- cmp_df$cmp %>% unique() %>% na.omit() %>% sort() %>% paste(collapse = "|")
+if (cmp_ids == "") stop("No valid cmp IDs found from compound list.")
 
 cmp_acts_file <- file.path(params$outdir, "step2_acts_for_cmp.csv")
 act_cmd <- paste(
@@ -103,29 +109,26 @@ act_cmd <- paste(
   "--out", shQuote(cmp_acts_file)
 )
 system(act_cmd)
-if (!file.exists(cmp_acts_file)) stop("Step 2 failed: cmp activities output not found.")
+if (!file.exists(cmp_acts_file)) stop("Step 2 failed: compound activity output not found.")
 log("[Step 2] Complete")
 
-# ------------------------- Step 3: Pull Acts for PLN -------------------------
-log("[Step 3] Pulling activities associated with plants")
-
-plant_labels <- read_csv(plants_file, show_col_types = FALSE)$pln_label %>%
-  unique() %>% na.omit() %>% paste(collapse = "|")
+# ------------------------- Step 3: Pull Activities for PLN -------------------------
+log("[Step 3] Pulling activities associated with matched plants")
 
 plant_acts_file <- file.path(params$outdir, "step3_acts_for_pln.csv")
 pln_act_cmd <- paste(
   "Rscript scripts/pull_acts_for_specific_pln.r",
   "--endpoint", params$endpoint,
-  "--plants", shQuote(plant_labels),
+  "--plants", shQuote(pln_labels),
   "--out", shQuote(plant_acts_file)
 )
 system(pln_act_cmd)
-if (!file.exists(plant_acts_file)) stop("Step 3 failed: plant activities output not found.")
+if (!file.exists(plant_acts_file)) stop("Step 3 failed: plant activity output not found.")
 log("[Step 3] Complete")
 
 # ------------------------- Completion -------------------------
 log("[Pipeline] Success. Outputs written to:")
-log(paste("  - Matched CMP rows:", resolved_cmp_file))
-log(paste("  - Plants for CMPs:", plants_file))
+log(paste("  - Matched PLN rows:", resolved_pln_file))
+log(paste("  - Compounds for PLNs:", compounds_file))
 log(paste("  - Activities for CMPs:", cmp_acts_file))
-log(paste("  - Activities for Plants:", plant_acts_file))
+log(paste("  - Activities for PLNs:", plant_acts_file))
