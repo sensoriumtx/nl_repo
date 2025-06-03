@@ -1,6 +1,6 @@
 # Nick Laskowski
-# Version 1.3
-# SMILES-Based Semantic Association Pipeline — With Proper Stepwise Output Management
+# Version 1.4
+# SMILES-Based Semantic Association Pipeline — With Proper Stepwise Output Management and Internal Join Handling
 
 #!/usr/bin/env Rscript
 
@@ -64,7 +64,7 @@ if (!is.null(params$smiles_file)) {
 if (is.null(params$smiles)) stop("You must provide either --smiles or a valid --smiles_file and --smiles_column")
 
 pull_smiles_cmd <- paste(
-  "Rscript Nick_dev/sensgit/scripts/pull_act_for_smiles.r",
+  "Rscript scripts/pull_act_for_smiles.r",
   "--endpoint", params$endpoint,
   "--smiles", shQuote(params$smiles),
   "--out", shQuote(resolved_cmp_file)
@@ -92,8 +92,10 @@ log(paste("[Step 1] Complete. Output written to:", plants_file))
 # ------------------------- Step 2: Pull Acts for CMP -------------------------
 log("[Step 2] Pulling activities associated with compounds")
 
-cmp_ids <- read_csv(resolved_cmp_file, show_col_types = FALSE)$cmp %>%
-  unique() %>% na.omit() %>% paste(collapse = "|")
+resolved_df <- read_csv(resolved_cmp_file, show_col_types = FALSE)
+if (!"cmp" %in% colnames(resolved_df)) stop("Column 'cmp' not found in SMILES output file.")
+
+cmp_ids <- resolved_df$cmp %>% unique() %>% na.omit() %>% paste(collapse = "|")
 
 cmp_acts_file <- file.path(params$outdir, "step2_acts_for_cmp.csv")
 act_cmd <- paste(
