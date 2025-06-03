@@ -35,7 +35,7 @@ def process_csv(input_path, output_path, column):
         raise ValueError(f"Column '{column}' not found in CSV.")
 
     df["isomeric_SMILES"] = None
-    df["is_already_isomeric"] = False
+    df["input_is_isomeric"] = False
     df["status"] = None
 
     for i, row in df.iterrows():
