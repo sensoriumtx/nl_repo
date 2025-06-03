@@ -3,6 +3,7 @@
 suppressMessages(library(tidyverse))
 suppressMessages(library(stringi))
 suppressMessages(library(parallel))
+suppressMessages(library(lubridate))
 suppressMessages(source("scripts/common.r"))
 suppressMessages(source("scripts/SPARQL.R"))
 
@@ -10,7 +11,14 @@ options(scipen = 100, digits = 4)
 
 # -------------------- Argument Parsing --------------------
 args <- commandArgs(trailingOnly = TRUE)
-parsed_args <- list(endpoint = "dev", cmp_file = NULL, cmp_column = NULL, chunk_size = 50, out = NULL, parallel = TRUE)
+parsed_args <- list(
+  endpoint = "dev", 
+  cmp_file = NULL, 
+  cmp_column = "cmp", 
+  chunk_size = 50, 
+  outdir = NULL,
+  out = NULL
+)
 
 i <- 1
 while (i <= length(args)) {
@@ -20,36 +28,33 @@ while (i <= length(args)) {
   if (key == "--cmp_file") parsed_args$cmp_file <- val
   if (key == "--cmp_column") parsed_args$cmp_column <- val
   if (key == "--chunk_size") parsed_args$chunk_size <- as.integer(val)
+  if (key == "--outdir") parsed_args$outdir <- val
   if (key == "--out") parsed_args$out <- val
-  if (key == "--parallel") parsed_args$parallel <- tolower(val) == "true"
   i <- i + 2
 }
 
-# -------------------- Validation --------------------
-if (is.null(parsed_args$cmp_file) || is.null(parsed_args$cmp_column) || is.null(parsed_args$out)) {
-  stop("[ERROR] Required arguments: --cmp_file, --cmp_column, --out", call. = FALSE)
+# -------------------- Validate Inputs --------------------
+if (is.null(parsed_args$cmp_file) || is.null(parsed_args$outdir) || is.null(parsed_args$out)) {
+  stop("Missing required arguments: --cmp_file, --outdir, and/or --out", call. = FALSE)
 }
-endpoint <- if (parsed_args$endpoint == "dev") endpoint_dev else stop("[ERROR] Unknown endpoint")
+if (!file.exists(parsed_args$cmp_file)) stop("File not found: ", parsed_args$cmp_file)
+if (!dir.exists(parsed_args$outdir)) dir.create(parsed_args$outdir, recursive = TRUE)
 
-# -------------------- Load Compounds --------------------
-message("[INFO] Reading input file: ", parsed_args$cmp_file)
-df_input <- read_csv(parsed_args$cmp_file, show_col_types = FALSE)
-if (!(parsed_args$cmp_column %in% colnames(df_input))) {
-  stop("[ERROR] cmp_column not found in input file: ", parsed_args$cmp_column)
-}
-cmp_list <- df_input[[parsed_args$cmp_column]] %>% unique() %>% discard(is.na)
-message("[INFO] Loaded ", length(cmp_list), " unique compounds")
+chunk_dir <- file.path(parsed_args$outdir, "chunked")
+if (!dir.exists(chunk_dir)) dir.create(chunk_dir, recursive = TRUE)
 
-if (length(cmp_list) == 0) stop("[ERROR] No valid compounds found in column: ", parsed_args$cmp_column)
+# -------------------- Load & Chunk CMPs --------------------
+message("[INFO] Reading input file...")
+df <- read_csv(parsed_args$cmp_file, show_col_types = FALSE)
+if (!(parsed_args$cmp_column %in% colnames(df))) stop("Column not found: ", parsed_args$cmp_column)
 
-# -------------------- Chunking (joined by "|") --------------------
-chunk_strings <- cmp_list %>%
-  split(ceiling(seq_along(.) / parsed_args$chunk_size)) %>%
-  map_chr(~ paste(., collapse = "|"))
+cmp_list <- df[[parsed_args$cmp_column]] %>% unique() %>% discard(is.na)
+message("[INFO] Loaded ", length(cmp_list), " unique cmp values")
 
-message("[INFO] Total chunks: ", length(chunk_strings), " (chunk size: ", parsed_args$chunk_size, ")")
+chunks <- split(cmp_list, ceiling(seq_along(cmp_list) / parsed_args$chunk_size))
+message("[INFO] Split into ", length(chunks), " chunks (chunk size = ", parsed_args$chunk_size, ")")
 
-# -------------------- SPARQL Components --------------------
+# -------------------- SPARQL Utility Functions --------------------
 outcomes <- c(
   "\"Agonist\"", "\"Inhibitor\"", "\"Antagonist\"", "\"Activator\"",
   "\"Inhibition\"", "\"Blocker\"", "\"Channel blocker\"", "\"Blocker (channel blocker)\"",
@@ -58,8 +63,8 @@ outcomes <- c(
   "\"Potentiation\"", "\"Gating inhibitor\"", "\"Opener\"", "\"Active\"", "\"Unspecified\""
 )
 
-get_cmp_metadata <- function(ids_pipe_joined) {
-  ids_space_sep <- gsub("\\|", " ", ids_pipe_joined)
+get_cmp_metadata <- function(cmp_pipe_joined) {
+  ids_space_sep <- gsub("\\|", " ", cmp_pipe_joined)
   q <- paste0(sparql_prefix, "
     select distinct ?cmp (sample(?label) as ?cmp_label) where {
       values ?cmp { ", ids_space_sep, " }
@@ -123,34 +128,36 @@ get_cmp_activities <- function(cmp_id) {
   })
 }
 
-# -------------------- Execute Metadata Queries --------------------
-message("[INFO] Fetching compound metadata...")
-all_metadata <- if (parsed_args$parallel) {
-  bind_rows(mclapply(chunk_strings, get_cmp_metadata, mc.cores = min(4, detectCores())))
-} else {
-  bind_rows(lapply(chunk_strings, get_cmp_metadata))
+# -------------------- Execute Each Chunk --------------------
+endpoint <- if (parsed_args$endpoint == "dev") endpoint_dev else stop("Invalid endpoint")
+
+chunk_files <- c()
+for (i in seq_along(chunks)) {
+  chunk_vals <- chunks[[i]]
+  cmp_arg <- paste(chunk_vals, collapse = "|")
+  out_file <- file.path(chunk_dir, paste0("chunk_", i, ".csv"))
+  chunk_files <- c(chunk_files, out_file)
+
+  message("[INFO] Running chunk ", i, " with ", length(chunk_vals), " compounds")
+
+  meta_df <- get_cmp_metadata(cmp_arg)
+  if (nrow(meta_df) == 0) {
+    message("[WARN] No metadata returned for chunk ", i)
+    next
+  }
+
+  activity_df <- bind_rows(lapply(meta_df$cmp, get_cmp_activities))
+  final_df <- fix_sparql_ids(activity_df) %>%
+    left_join(meta_df, by = "cmp")
+
+  write_csv(final_df, out_file)
+  message("[INFO] Chunk ", i, " saved to: ", out_file)
 }
-message("[INFO] Metadata results: ", nrow(all_metadata))
 
-if (nrow(all_metadata) == 0) {
-  message("[WARN] No metadata retrieved. Exiting.")
-  q("no", 1, FALSE)
-}
+# -------------------- Final Merge --------------------
+message("[INFO] Merging ", length(chunk_files), " chunk files into final output")
 
-# -------------------- Execute Activity Queries --------------------
-message("[INFO] Fetching compound activities...")
-all_activities <- if (parsed_args$parallel) {
-  bind_rows(mclapply(all_metadata$cmp, get_cmp_activities, mc.cores = min(4, detectCores())))
-} else {
-  bind_rows(lapply(all_metadata$cmp, get_cmp_activities))
-}
-message("[INFO] Activity results: ", nrow(all_activities))
+merged_df <- bind_rows(lapply(chunk_files, read_csv, show_col_types = FALSE))
+write_csv(merged_df, parsed_args$out)
 
-# -------------------- Final Merge + Save --------------------
-message("[INFO] Joining and saving results")
-final_df <- fix_sparql_ids(all_activities) %>%
-  left_join(all_metadata, by = "cmp")
-
-if (!dir.exists(dirname(parsed_args$out))) dir.create(dirname(parsed_args$out), recursive = TRUE)
-write_csv(final_df, parsed_args$out)
-message("✅ Done. Output written to: ", parsed_args$out)
+message("✅ All chunks complete. Final file written to: ", parsed_args$out)
