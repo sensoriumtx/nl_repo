@@ -1,6 +1,6 @@
 # Nick Laskowski
-# Version 1.5
-# SMILES-Based Semantic Association Pipeline — With Proper Stepwise Output Management and Internal Join Handling
+# Version 1.6
+# SMILES-Based Semantic Association Pipeline — Simplified with Direct SMILES Only
 
 #!/usr/bin/env Rscript
 
@@ -30,8 +30,6 @@ parseArgs <- function(args) {
     val <- if (i + 1 <= length(args)) args[i + 1] else NA
     if (is.na(val)) stop(paste("Missing value for", arg))
     if (arg == "--smiles") out$smiles <- val
-    else if (arg == "--smiles_file") out$smiles_file <- val
-    else if (arg == "--smiles_column") out$smiles_column <- val
     else if (arg == "--endpoint") out$endpoint <- val
     else if (arg == "--outdir") out$outdir <- val
     else stop(paste("Unknown argument:", arg))
@@ -42,6 +40,7 @@ parseArgs <- function(args) {
 
 params <- parseArgs(args)
 if (is.null(params$outdir)) stop("--outdir must be specified")
+if (is.null(params$smiles)) stop("--smiles must be provided")
 
 # ------------------------- Directory Setup -------------------------
 dir.create(params$outdir, showWarnings = FALSE, recursive = TRUE)
@@ -53,20 +52,8 @@ log("[Step 0] Pulling activities directly for SMILES")
 
 resolved_cmp_file <- file.path(params$outdir, "step0_acts_for_smiles.csv")
 
-# Determine whether to use direct input or file input
-if (!is.null(params$smiles_file)) {
-  smiles_data <- read_csv(params$smiles_file, show_col_types = FALSE)
-  if (is.null(params$smiles_column)) stop("--smiles_column must be specified if --smiles_file is used")
-  if (!params$smiles_column %in% names(smiles_data)) stop(paste("Column", params$smiles_column, "not found in SMILES file"))
-  smiles_vec <- smiles_data[[params$smiles_column]] %>% unique() %>% na.omit()
-  if (length(smiles_vec) == 0) stop("No valid SMILES found in specified column")
-  params$smiles <- paste(smiles_vec, collapse = "|")
-}
-
-if (is.null(params$smiles)) stop("You must provide either --smiles or a valid --smiles_file and --smiles_column")
-
 pull_smiles_cmd <- paste(
-  "Rscript Nick_dev/sensgit/scripts/pull_act_for_smiles.r",
+  "Rscript scripts/pull_act_for_smiles.r",
   "--endpoint", params$endpoint,
   "--smiles", shQuote(params$smiles),
   "--out", shQuote(resolved_cmp_file)
