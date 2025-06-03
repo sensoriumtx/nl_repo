@@ -69,6 +69,11 @@ process_smiles_csv <- function(input_file, output_file, smiles_column = "primary
     }
   }
 
+  # Check if output_file is a directory
+  if (dir.exists(output_file)) {
+    stop("ERROR: The --out path is a directory. Please specify a full file name like 'output.csv'")
+  }
+
   write_csv(df, output_file)
   cat("Output saved to", output_file, "\n")
 }
@@ -104,8 +109,8 @@ process_inline_smiles <- function(smiles_input) {
 # --- CLI Argument Parser ---
 
 parser <- ArgumentParser(description = "Standardize SMILES to isomeric format")
-parser$add_argument("--in_file", help = "Path to input CSV file with SMILES")
-parser$add_argument("--out_file", help = "Path to save output CSV")
+parser$add_argument("--in", dest = "in_file", help = "Path to input CSV file with SMILES")
+parser$add_argument("--out", dest = "out_file", help = "Path to save output CSV")
 parser$add_argument("--smiles_column", default = "primary_SMILES", help = "SMILES column name")
 parser$add_argument("--smiles", help = "Inline SMILES string (single or pipe-separated)")
 
@@ -118,6 +123,6 @@ if (!is.null(args$smiles)) {
 } else if (!is.null(args$in_file) && !is.null(args$out_file)) {
   process_smiles_csv(args$in_file, args$out_file, args$smiles_column)
 } else {
-  cat("ERROR: Please specify either --smiles or both --in_file and --out_file\n")
+  cat("ERROR: Please specify either --smiles or both --in and --out\n")
   parser$print_help()
 }
