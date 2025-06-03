@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
-# --- Setup ---
-packages <- c("argparse", "rcdk", "dplyr", "readr")
+# --- Install Required Packages ---
+packages <- c("argparse", "rcdk", "rcdklibs", "rJava", "dplyr", "readr")
 for (pkg in packages) {
   if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
     install.packages(pkg, repos = "https://cloud.r-project.org")
@@ -9,15 +9,19 @@ for (pkg in packages) {
   }
 }
 
+# --- Load Libraries Silently ---
 suppressMessages({
   library(argparse)
   library(rcdk)
+  library(rcdklibs)
+  library(rJava)
   library(dplyr)
   library(readr)
 })
 
-# --- Helper Functions ---
+# --- Functions ---
 
+# Check if SMILES is already isomeric
 is_isomeric_smiles <- function(smiles) {
   tryCatch({
     mol <- parse.smiles(smiles)[[1]]
@@ -28,6 +32,7 @@ is_isomeric_smiles <- function(smiles) {
   }, error = function(e) list(is_isomeric = FALSE, status = paste("Error:", e$message)))
 }
 
+# Convert SMILES to isomeric format
 standardize_smiles <- function(smiles) {
   tryCatch({
     mol <- parse.smiles(smiles)[[1]]
@@ -37,10 +42,14 @@ standardize_smiles <- function(smiles) {
   }, error = function(e) list(smiles = NA, status = paste("Error:", e$message)))
 }
 
+# Process SMILES from CSV input
 process_smiles_csv <- function(input_file, output_file, smiles_column = "primary_SMILES") {
   df <- tryCatch(read_csv(input_file, show_col_types = FALSE), 
                  error = function(e) stop("Error reading CSV: ", e$message))
-  if (!(smiles_column %in% colnames(df))) stop("Column ", smiles_column, " not found.")
+
+  if (!(smiles_column %in% colnames(df))) {
+    stop("Column ", smiles_column, " not found in the input CSV.")
+  }
 
   df <- df %>%
     mutate(
@@ -69,15 +78,16 @@ process_smiles_csv <- function(input_file, output_file, smiles_column = "primary
     }
   }
 
-  # Check if output_file is a directory
+  # Prevent writing to directory instead of file
   if (dir.exists(output_file)) {
-    stop("ERROR: The --out path is a directory. Please specify a full file name like 'output.csv'")
+    stop("ERROR: The --out path appears to be a directory. Please specify a full file name like 'output.csv'")
   }
 
   write_csv(df, output_file)
-  cat("Output saved to", output_file, "\n")
+  cat("Output saved to:", output_file, "\n")
 }
 
+# Process inline SMILES string(s)
 process_inline_smiles <- function(smiles_input) {
   smiles_list <- unlist(strsplit(smiles_input, "\\|"))
   results <- data.frame(
@@ -106,23 +116,22 @@ process_inline_smiles <- function(smiles_input) {
   print(results)
 }
 
-# --- CLI Argument Parser ---
+# --- Argument Parser Setup ---
+parser <- ArgumentParser(description = "Standardize SMILES to isomeric form")
 
-parser <- ArgumentParser(description = "Standardize SMILES to isomeric format")
-parser$add_argument("--in", dest = "in_file", help = "Path to input CSV file with SMILES")
-parser$add_argument("--out", dest = "out_file", help = "Path to save output CSV")
-parser$add_argument("--smiles_column", default = "primary_SMILES", help = "SMILES column name")
-parser$add_argument("--smiles", help = "Inline SMILES string (single or pipe-separated)")
+parser$add_argument("--in", dest = "in_file", help = "Path to input CSV file")
+parser$add_argument("--out", dest = "out_file", help = "Path to output CSV file")
+parser$add_argument("--smiles_column", default = "primary_SMILES", help = "SMILES column name in input CSV")
+parser$add_argument("--smiles", help = "SMILES string(s) separated by pipe (|)")
 
 args <- parser$parse_args()
 
-# --- Execution Control ---
-
+# --- Execution Logic ---
 if (!is.null(args$smiles)) {
   process_inline_smiles(args$smiles)
 } else if (!is.null(args$in_file) && !is.null(args$out_file)) {
   process_smiles_csv(args$in_file, args$out_file, args$smiles_column)
 } else {
-  cat("ERROR: Please specify either --smiles or both --in and --out\n")
+  cat("ERROR: Provide either --smiles or both --in and --out paths.\n")
   parser$print_help()
 }
