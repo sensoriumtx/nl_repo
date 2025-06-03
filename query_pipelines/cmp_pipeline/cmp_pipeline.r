@@ -53,7 +53,7 @@ log("[Step 0] Pulling activities for CMP")
 cmp_acts_file <- file.path(params$outdir, "step0_acts_for_cmp.csv")
 
 pull_cmp_acts_cmd <- paste(
-  "Rscript Nick_dev/sensgit/scripts/pull_acts_for_specific_cmp_ids.r",
+  "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
   "--endpoint", params$endpoint,
   "--compound", shQuote(params$cmp),
   "--out", shQuote(cmp_acts_file)
