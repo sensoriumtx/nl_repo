@@ -42,9 +42,12 @@ message("[INFO] Loaded ", length(cmp_list), " unique compounds")
 
 if (length(cmp_list) == 0) stop("[ERROR] No valid compounds found in column: ", parsed_args$cmp_column)
 
-# -------------------- Chunking --------------------
-chunks <- split(cmp_list, ceiling(seq_along(cmp_list) / parsed_args$chunk_size))
-message("[INFO] Total chunks: ", length(chunks), " (chunk size: ", parsed_args$chunk_size, ")")
+# -------------------- Chunking (joined by "|") --------------------
+chunk_strings <- cmp_list %>%
+  split(ceiling(seq_along(.) / parsed_args$chunk_size)) %>%
+  map_chr(~ paste(., collapse = "|"))
+
+message("[INFO] Total chunks: ", length(chunk_strings), " (chunk size: ", parsed_args$chunk_size, ")")
 
 # -------------------- SPARQL Components --------------------
 outcomes <- c(
@@ -55,11 +58,11 @@ outcomes <- c(
   "\"Potentiation\"", "\"Gating inhibitor\"", "\"Opener\"", "\"Active\"", "\"Unspecified\""
 )
 
-get_cmp_metadata <- function(chunk) {
-  ids_str <- paste(chunk, collapse = " ")
+get_cmp_metadata <- function(ids_pipe_joined) {
+  ids_space_sep <- gsub("\\|", " ", ids_pipe_joined)
   q <- paste0(sparql_prefix, "
     select distinct ?cmp (sample(?label) as ?cmp_label) where {
-      values ?cmp { ", ids_str, " }
+      values ?cmp { ", ids_space_sep, " }
       {
         ?cmp (^sen:hasCompound|(sen:maps_to+/^sen:hasCompound))/rdf:type sen:use .
       } UNION {
@@ -120,12 +123,12 @@ get_cmp_activities <- function(cmp_id) {
   })
 }
 
-# -------------------- Execute --------------------
+# -------------------- Execute Metadata Queries --------------------
 message("[INFO] Fetching compound metadata...")
 all_metadata <- if (parsed_args$parallel) {
-  bind_rows(mclapply(chunks, get_cmp_metadata, mc.cores = min(4, detectCores())))
+  bind_rows(mclapply(chunk_strings, get_cmp_metadata, mc.cores = min(4, detectCores())))
 } else {
-  bind_rows(lapply(chunks, get_cmp_metadata))
+  bind_rows(lapply(chunk_strings, get_cmp_metadata))
 }
 message("[INFO] Metadata results: ", nrow(all_metadata))
 
@@ -134,6 +137,7 @@ if (nrow(all_metadata) == 0) {
   q("no", 1, FALSE)
 }
 
+# -------------------- Execute Activity Queries --------------------
 message("[INFO] Fetching compound activities...")
 all_activities <- if (parsed_args$parallel) {
   bind_rows(mclapply(all_metadata$cmp, get_cmp_activities, mc.cores = min(4, detectCores())))
