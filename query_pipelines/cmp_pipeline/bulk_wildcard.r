@@ -96,7 +96,20 @@ plant_cmd <- paste(
   "--out", shQuote(plants_file)
 )
 system(plant_cmd)
-if (!file.exists(plants_file)) stop("Step 1 failed: plant output not found.")
+
+step1_has_data <- FALSE
+if (!file.exists(plants_file)) {
+  log("[Step 1] No plant file found. Writing blank file.")
+  write_csv(tibble(pln_label = character()), plants_file)
+} else {
+  plant_data <- read_csv(plants_file, show_col_types = FALSE)
+  if (nrow(plant_data) == 0) {
+    log("[Step 1] Plant file is empty. Writing blank file.")
+    write_csv(tibble(pln_label = character()), plants_file)
+  } else {
+    step1_has_data <- TRUE
+  }
+}
 log("[Step 1] Complete")
 
 # ------------------------- Step 2: Pull Acts for CMP -------------------------
@@ -110,24 +123,51 @@ act_cmd <- paste(
   "--out", shQuote(cmp_acts_file)
 )
 system(act_cmd)
-if (!file.exists(cmp_acts_file)) stop("Step 2 failed: cmp activities output not found.")
+
+step2_has_data <- FALSE
+if (!file.exists(cmp_acts_file)) {
+  log("[Step 2] No cmp activities file found. Writing blank file.")
+  write_csv(tibble(), cmp_acts_file)
+} else {
+  cmp_acts <- read_csv(cmp_acts_file, show_col_types = FALSE)
+  if (nrow(cmp_acts) == 0) {
+    log("[Step 2] CMP activities file is empty. Writing blank file.")
+    write_csv(tibble(), cmp_acts_file)
+  } else {
+    step2_has_data <- TRUE
+  }
+}
 log("[Step 2] Complete")
 
 # ------------------------- Step 3: Pull Acts for PLN -------------------------
 log("[Step 3] Pulling activities associated with plants")
 
-plant_labels <- read_csv(plants_file, show_col_types = FALSE)$pln_label %>%
-  unique() %>% na.omit() %>% paste(collapse = "|")
-
 plant_acts_file <- file.path(params$outdir, "step3_acts_for_pln.csv")
-pln_act_cmd <- paste(
-  "Rscript scripts/pull_acts_for_specific_pln.r",
-  "--endpoint", params$endpoint,
-  "--plants", shQuote(plant_labels),
-  "--out", shQuote(plant_acts_file)
-)
-system(pln_act_cmd)
-if (!file.exists(plant_acts_file)) stop("Step 3 failed: plant activities output not found.")
+
+if (step1_has_data && step2_has_data) {
+  plant_labels <- plant_data$pln_label %>% unique() %>% na.omit() %>% paste(collapse = "|")
+  pln_act_cmd <- paste(
+    "Rscript scripts/pull_acts_for_specific_pln.r",
+    "--endpoint", params$endpoint,
+    "--plants", shQuote(plant_labels),
+    "--out", shQuote(plant_acts_file)
+  )
+  system(pln_act_cmd)
+
+  if (!file.exists(plant_acts_file)) {
+    log("[Step 3] No plant activity file found. Writing blank file.")
+    write_csv(tibble(), plant_acts_file)
+  } else {
+    plant_acts <- read_csv(plant_acts_file, show_col_types = FALSE)
+    if (nrow(plant_acts) == 0) {
+      log("[Step 3] Plant activity file is empty. Writing blank file.")
+      write_csv(tibble(), plant_acts_file)
+    }
+  }
+} else {
+  log("[Step 3] Skipped because Step 1 or Step 2 has no data. Writing blank file.")
+  write_csv(tibble(), plant_acts_file)
+}
 log("[Step 3] Complete")
 
 # ------------------------- Completion -------------------------
