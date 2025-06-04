@@ -53,7 +53,7 @@ log("[Step 0] Pulling activities directly for SMILES")
 resolved_cmp_file <- file.path(params$outdir, "step0_acts_for_smiles.csv")
 
 pull_smiles_cmd <- paste(
-  "Rscript Nick_dev/sensgit/scripts/pull_act_for_smiles.r",
+  "Rscript nl_repo/scripts/pull_act_for_smiles.r",
   "--endpoint", params$endpoint,
   "--smiles", shQuote(params$smiles),
   "--out", shQuote(resolved_cmp_file)
