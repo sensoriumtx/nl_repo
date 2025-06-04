@@ -14,26 +14,28 @@ Install Visual Studio Code with the Remote - SSH and Dev Containers extensions.
 # Setup Instructions
 1. SSH into EC2
 On your local machine, connect to the EC2 instance:
-bash```
+```
 ssh -i <key.pem> ubuntu@<ec2-ip>
 ```
 
 2. Enter Docker Container
 Access the running Docker container:
-bash```
+```
 docker exec -it "container_name" bash
 ```
     *utilize docker ps for containernames
 
 3. Clone the Repository
 In the container, clone the repository:
-bash ```
+
+ ```
 cd /home/rstudio/knowledge-graph
 git clone https://github.com/sensoriumtx/nl_repo.git nl_repo
 ```
 
 If the nl_repo directory already exists, update it:
-bash```
+
+```
 cd /home/rstudio/knowledge-graph/nl_repo
 git pull origin main
 ```
@@ -41,13 +43,13 @@ git pull origin main
 4. Fix Git Ownership
 Git may report a “dubious ownership” error due to file ownership in the container. Fix it:
 
-bash```
+```
 git config --global --add safe.directory /home/rstudio/knowledge-graph/nl_repo
 ```
 
 Verify:
 
-bash```
+```
 cd /home/rstudio/knowledge-graph/nl_repo
 git status
 ```
