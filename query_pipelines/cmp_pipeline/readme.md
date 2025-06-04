@@ -1,6 +1,6 @@
 # Use Case Examples
 
-1. cmp_pipeline.r use cases
+## 1. cmp_pipeline.r use cases
 
 ### Single cmp string
 
@@ -13,7 +13,7 @@ Rscript nl_repo/query_pipelines/cmp_pipeline/cmp_pipeline.r --endpoint dev --cmp
 Rscript nl_repo/query_pipelines/cmp_pipeline/cmp_pipeline.r --endpoint dev --cmp "sen:SENCMP000000000006|sen:SENCMP000000000033|sen:SENCMP000000000046" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_cmp_pipeline_multi_cmp_test
 ```
 
-2. smiles_pipeline.r use cases
+## 2. smiles_pipeline.r use cases
 
 ### Single smiles string
 ```
@@ -25,7 +25,7 @@ Rscript nl_repo/query_pipelines/cmp_pipeline/smiles_pipeline.r --endpoint dev --
 Rscript nl_repo/query_pipelines/cmp_pipeline/smiles_pipeline.r --endpoint dev --smiles "COc1ccc2c(c1)O[C@H]1c3ccc(O)cc3OC[C@@H]21||COc1ccc2c(c1OC)C(=O)O[C@@H]2[C@H]1c2c(cc3c(c2OC)OCO3)CCN1C|" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_smile_pipeline_test
 ```
 
-3. Wildcard cmp use cases
+## 3. Wildcard cmp use cases
 
 ### Single wildcard
 
