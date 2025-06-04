@@ -56,7 +56,7 @@ def process_csv(input_path, output_path, column):
             df.at[i, "status"] = status
 
     df.to_csv(output_path, index=False)
-    print(f"✅ Output written to {output_path}")
+    print(f"Output written to {output_path}")
 
 
 def process_inline(smiles_str):
