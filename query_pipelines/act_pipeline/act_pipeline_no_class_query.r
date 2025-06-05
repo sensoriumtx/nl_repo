@@ -162,13 +162,15 @@ system(cmd3)
 
 if (!file.exists(step3_outfile)) {
   log("[Step 3] Warning: Compound activity enrichment file not found")
-  
+  cmp_act_df <- tibble(cmp = character(), act_cmp = character(), act_label_cmp = character())
+} else {
   cmp_act_df <- read_csv(step3_outfile, show_col_types = FALSE) %>%
-  rename(act_cmp = act, act_label_cmp = act_label) %>%
-  distinct(cmp, act_cmp, act_label_cmp) %>%
-  drop_na(cmp)
+    rename(act_cmp = act, act_label_cmp = act_label) %>%
+    distinct(cmp, act_cmp, act_label_cmp) %>%
+    drop_na(cmp)
+  log(paste("[Step 3] Complete: Total Compound Activities:", nrow(cmp_act_df)))
+}
 
-log(paste("[Step 3] Complete: Total Compound Activities:", nrow(cmp_act_df)))
 
 # ------------------------- Step 4: Merge All -------------------------
 log("[Step 4] Merging Plant, Compound, and Activity Data")
