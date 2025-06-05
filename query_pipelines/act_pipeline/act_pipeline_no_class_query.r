@@ -226,41 +226,39 @@ deliverable_df <- final_df %>%
     .groups = "drop"
   )
 
+# Optional scoring label reassignment
 if (!is.null(params$scoring)) {
   scoring_df <- read_csv(params$scoring, show_col_types = FALSE)
 
-  if (!"cmp" %in% names(scoring_df)) {
-    stop("[Step 5] Scoring file does not contain a 'cmp' column.")
-  }
+  if ("cmp" %in% names(scoring_df)) {
+    log("[Step 5] Merging scoring file using 'cmp' with fallback label reassignment")
 
-  # Safely pull optional columns
-  scoring_merge_df <- scoring_df %>% select(cmp)
-
-  if ("cmp_label" %in% names(scoring_df)) {
-    scoring_merge_df <- scoring_merge_df %>% bind_cols(scoring_df %>% select(cmp_label_scoring = cmp_label))
-  } else {
-    scoring_merge_df$cmp_label_scoring <- NA
-  }
-
-  if ("label" %in% names(scoring_df)) {
-    scoring_merge_df <- scoring_merge_df %>% bind_cols(scoring_df %>% select(label_fallback = label))
-  } else {
-    scoring_merge_df$label_fallback <- NA
-  }
-
-  log("[Step 5] Merging scoring file using 'cmp' with fallback label reassignment")
-
-  deliverable_df <- deliverable_df %>%
-    left_join(scoring_merge_df, by = "cmp") %>%
-    mutate(
-      cmp_label = case_when(
-        !is.na(cmp_label) & cmp_label != "" ~ cmp_label,
-        !is.na(cmp_label_scoring) & cmp_label_scoring != "" ~ cmp_label_scoring,
-        !is.na(label_fallback) & label_fallback != "" ~ label_fallback,
-        TRUE ~ cmp_label
+    # Prepare scoring file
+    scoring_df <- scoring_df %>%
+      mutate(
+        cmp = as.character(cmp),
+        cmp_label_scoring = if ("cmp_label" %in% names(.)) as.character(cmp_label) else NA_character_,
+        label_fallback = if ("label" %in% names(.)) as.character(label) else NA_character_
       )
-    ) %>%
-    select(-cmp_label_scoring, -label_fallback)
+
+    scoring_merge_df <- scoring_df %>% select(cmp, cmp_label_scoring, label_fallback)
+
+    deliverable_df <- deliverable_df %>%
+      mutate(cmp = as.character(cmp), cmp_label = as.character(cmp_label)) %>%
+      left_join(scoring_merge_df, by = "cmp") %>%
+      mutate(
+        cmp_label = case_when(
+          !is.na(cmp_label) & cmp_label != "" ~ cmp_label,
+          !is.na(cmp_label_scoring) & cmp_label_scoring != "" ~ cmp_label_scoring,
+          !is.na(label_fallback) & label_fallback != "" ~ label_fallback,
+          TRUE ~ cmp_label
+        )
+      ) %>%
+      select(-cmp_label_scoring, -label_fallback)
+
+  } else {
+    log("[Step 5] Scoring file missing 'cmp' column; skipping label reassignment")
+  }
 }
 
 write_csv(deliverable_df, file.path(params$outdir, "final_deliverable.csv"))
