@@ -233,34 +233,34 @@ if (!is.null(params$scoring)) {
     stop("[Step 5] Scoring file does not contain a 'cmp' column.")
   }
 
-  has_cmp_label <- "cmp_label" %in% names(scoring_df)
-  has_label <- "label" %in% names(scoring_df)
+  # Safely pull optional columns
+  scoring_merge_df <- scoring_df %>% select(cmp)
 
-  if (has_cmp_label || has_label) {
-    log(paste0("[Step 5] Merging scoring file using 'cmp' with fallback label reassignment"))
-
-    scoring_df <- scoring_df %>%
-      select(cmp,
-             cmp_label_scoring = if (has_cmp_label) "cmp_label" else "cmp",  # fallback
-             label_fallback = if (has_label) "label" else "cmp")             # fallback
-
-    deliverable_df <- deliverable_df %>%
-      left_join(scoring_df, by = "cmp") %>%
-      mutate(
-        cmp_label = case_when(
-          !is.na(cmp_label) & cmp_label != "" ~ cmp_label,
-          !is.na(cmp_label_scoring) & cmp_label_scoring != "" ~ cmp_label_scoring,
-          !is.na(label_fallback) & label_fallback != "" ~ label_fallback,
-          TRUE ~ cmp_label
-        )
-      ) %>%
-      select(-cmp_label_scoring, -label_fallback)
-
+  if ("cmp_label" %in% names(scoring_df)) {
+    scoring_merge_df <- scoring_merge_df %>% bind_cols(scoring_df %>% select(cmp_label_scoring = cmp_label))
   } else {
-    log("[Step 5] Scoring file contains 'cmp' but no 'cmp_label' or 'label'; skipping label reassignment.")
-    deliverable_df <- deliverable_df %>%
-      left_join(scoring_df, by = "cmp")
+    scoring_merge_df$cmp_label_scoring <- NA
   }
+
+  if ("label" %in% names(scoring_df)) {
+    scoring_merge_df <- scoring_merge_df %>% bind_cols(scoring_df %>% select(label_fallback = label))
+  } else {
+    scoring_merge_df$label_fallback <- NA
+  }
+
+  log("[Step 5] Merging scoring file using 'cmp' with fallback label reassignment")
+
+  deliverable_df <- deliverable_df %>%
+    left_join(scoring_merge_df, by = "cmp") %>%
+    mutate(
+      cmp_label = case_when(
+        !is.na(cmp_label) & cmp_label != "" ~ cmp_label,
+        !is.na(cmp_label_scoring) & cmp_label_scoring != "" ~ cmp_label_scoring,
+        !is.na(label_fallback) & label_fallback != "" ~ label_fallback,
+        TRUE ~ cmp_label
+      )
+    ) %>%
+    select(-cmp_label_scoring, -label_fallback)
 }
 
 write_csv(deliverable_df, file.path(params$outdir, "final_deliverable.csv"))
