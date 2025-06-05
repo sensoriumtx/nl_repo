@@ -1,9 +1,12 @@
+#!/usr/bin/env Rscript
+
 suppressMessages(library(tidyverse))
 suppressMessages(library(lubridate))
 suppressMessages(library(parallel))
 
 cat("Script starting...\n", flush = TRUE)
 
+# ------------------------- Argument Parsing -------------------------
 args <- commandArgs(trailingOnly = TRUE)
 log_file <- NULL
 log <- function(message) {
@@ -43,16 +46,7 @@ parseArgs <- function(args) {
 
 params <- parseArgs(args)
 
-# Validate or load activities from --acts or --act_file
-if (!is.null(params$act_file)) {
-  if (!file.exists(params$act_file)) stop("Provided --act_file does not exist.")
-  act_table <- read_csv(params$act_file, show_col_types = FALSE)
-  names(act_table) <- tolower(names(act_table))
-  if (!"terms" %in% names(act_table)) stop("--act_file must contain a 'terms' or 'Terms' column")
-  params$acts <- paste(act_table$terms, collapse = "|")
-} else if (is.null(params$acts)) {
-  stop("You must provide either --acts or --act_file")
-}
+# ------------------------- Output Setup -------------------------
 dir.create(params$outdir, showWarnings = FALSE, recursive = TRUE)
 log_file <- file.path(params$outdir, "pipeline_log.txt")
 cat("Pipeline Log\n==============\n", file = log_file)
@@ -60,18 +54,21 @@ cat("Pipeline Log\n==============\n", file = log_file)
 workers <- 10
 log(paste("[Setup] Using", workers, "parallel workers"))
 
-# --------- Step 1: Fetching Activities for Plants (Parallelized) ---------------
-
+# ------------------------- Activity Loading -------------------------
 if (!is.null(params$act_file)) {
   if (!file.exists(params$act_file)) stop("Provided --act_file does not exist.")
   act_table <- read_csv(params$act_file, show_col_types = FALSE)
-  if (!"terms" %in% names(act_table)) stop("--act_file must contain a 'terms' column")
-  params$acts <- paste(act_table$terms, collapse = "|")
+  names_lower <- tolower(names(act_table))
+  col_match <- which(names_lower %in% c("term", "terms"))
+  if (length(col_match) == 0) stop("--act_file must contain a 'term' or 'terms' column")
+  selected_col <- names(act_table)[col_match[1]]
+  params$acts <- paste(act_table[[selected_col]], collapse = "|")
 } else if (is.null(params$acts)) {
   stop("You must provide either --acts or --act_file")
 }
-log("[Step 1] Fetching Plants Associated with Activity")
 
+# ------------------------- Step 1: Pull Plants for Activities -------------------------
+log("[Step 1] Fetching Plants Associated with Activity")
 all_acts <- strsplit(params$acts, "\\|")[[1]]
 chunk_size <- 100
 act_chunks <- split(all_acts, ceiling(seq_along(all_acts) / chunk_size))
@@ -97,13 +94,11 @@ stopCluster(cl)
 plants_df <- map_dfr(chunk_output_files, read_csv, show_col_types = FALSE) %>%
   distinct(pln, pln_label, act_pln = act, act_label_pln = act_label) %>%
   drop_na(pln, pln_label)
-step1_out <- file.path(params$outdir, "step1_plants.csv")
-write_csv(plants_df, step1_out)
+write_csv(plants_df, file.path(params$outdir, "step1_plants.csv"))
 log(paste("[Step 1] Complete: Total Plants:", nrow(plants_df)))
 
-# --------- Step 2: Fetching Compounds for Plants (Fully Parallelized) ----------
+# ------------------------- Step 2: Pull Compounds for Plants -------------------------
 log("[Step 2] Fetching Compounds Associated with Identified Plants")
-
 plant_label_map <- plants_df %>% distinct(pln, pln_label)
 plant_chunks <- split(plant_label_map$pln_label, ceiling(seq_along(plant_label_map$pln_label) / 100))
 log(paste("Total Plant Labels:", nrow(plant_label_map)))
@@ -128,15 +123,13 @@ run_chunk <- function(i) {
 chunk_output_files <- parallel::mclapply(seq_along(plant_chunks), run_chunk, mc.cores = workers)
 valid_chunks <- chunk_output_files[sapply(chunk_output_files, file.exists)]
 
-log(paste("[Step 2] Total Valid Chunks:", length(valid_chunks)))
 cmp_df <- map_dfr(valid_chunks, read_csv, show_col_types = FALSE) %>%
   distinct(pln, cmp, cmp_labels) %>%
   inner_join(plant_label_map, by = "pln")
-step2_out <- file.path(params$outdir, "step2_cmp.csv")
-write_csv(cmp_df, step2_out)
+write_csv(cmp_df, file.path(params$outdir, "step2_cmp.csv"))
 log(paste("[Step 2] Complete: Total Compound Mappings:", nrow(cmp_df)))
 
-# --------- Step 3: Fetching Activities for Compounds ---------------------------
+# ------------------------- Step 3: Pull Activities for Compounds -------------------------
 log("[Step 3] Fetching Compound-Level Activity Annotations")
 
 act_chunks_cmp <- split(all_acts, ceiling(seq_along(all_acts) / chunk_size))
@@ -161,12 +154,17 @@ run_cmp_act_chunk <- function(i) {
 cmp_act_chunk_files <- parallel::mclapply(seq_along(act_chunks_cmp), run_cmp_act_chunk, mc.cores = workers)
 valid_cmp_chunks <- cmp_act_chunk_files[sapply(cmp_act_chunk_files, file.exists)]
 
-cmp_act_df <- map_dfr(valid_cmp_chunks, read_csv, show_col_types = FALSE) %>%
-  distinct(cmp, act_cmp = act.x, act_label_cmp = act_label) %>%
-  drop_na(cmp)
+if (length(valid_cmp_chunks) == 0) {
+  log("[Step 3] Warning: No compound activity files found")
+  cmp_act_df <- tibble(cmp = character(), act_cmp = character(), act_label_cmp = character())
+} else {
+  cmp_act_df <- map_dfr(valid_cmp_chunks, read_csv, show_col_types = FALSE) %>%
+    distinct(cmp, act_cmp = act.x, act_label_cmp = act_label) %>%
+    drop_na(cmp)
+}
 log(paste("[Step 3] Complete: Total Compound Activities:", nrow(cmp_act_df)))
 
-# --------- Step 4: Merging Dataframes (Expanded Merge) -------------------------
+# ------------------------- Step 4: Merge All -------------------------
 log("[Step 4] Merging Plant, Compound, and Activity Data")
 
 final_df <- cmp_df %>%
@@ -186,11 +184,10 @@ final_df <- bind_rows(final_df, cmp_unmapped) %>%
   select(-pln_label.plndf) %>%
   distinct(cmp, cmp_labels, pln, pln_label, act_cmp, act_label_cmp, act_pln, act_label_pln)
 
-final_out <- file.path(params$outdir, "final_merged_output.csv")
-write_csv(final_df, final_out)
+write_csv(final_df, file.path(params$outdir, "final_merged_output.csv"))
 log(paste("[Step 4] Complete: Final Merged File Rows:", nrow(final_df)))
 
-# --------- Step 5: Generating Clean Deliverable File with Scoring --------------
+# ------------------------- Step 5: Deliverable File + Scoring -------------------------
 log("[Step 5] Aggregating and Scoring Final Output")
 
 deliverable_df <- final_df %>%
@@ -208,23 +205,20 @@ deliverable_df <- final_df %>%
 
 if (!is.null(params$scoring)) {
   scoring_df <- read_csv(params$scoring, show_col_types = FALSE)
-  deliverable_df <- deliverable_df %>% left_join(scoring_df, by = "cmp")
-}
-
-step5_out <- file.path(params$outdir, "deliverable.csv")
-write_csv(deliverable_df, step5_out)
-log("[Step 5] Complete: Deliverable File with Scoring Saved")
-
-
-# Patch cmp_label if missing using 'label' from deliverable
-if (file.exists(step5_out)) {
-  final_classified_df <- read_csv(step6_out, show_col_types = FALSE)
-  if ("label" %in% names(final_classified_df)) {
-    final_classified_df <- final_classified_df %>%
-      mutate(cmp_label = coalesce(cmp_label, cmpLabel))
-    write_csv(final_classified_df, step6_out)
-    log("[Step 6] Patched: Missing cmp_label Values Mapped")
+  scoring_col <- if ("cmp_label" %in% names(scoring_df)) "cmp_label" else if ("label" %in% names(scoring_df)) "label" else NULL
+  if (!is.null(scoring_col)) {
+    scoring_df <- scoring_df %>% select(cmp, label_final = all_of(scoring_col))
+    deliverable_df <- deliverable_df %>% left_join(scoring_df, by = "cmp") %>%
+      mutate(cmp_label = coalesce(cmp_label, label_final)) %>%
+      select(-label_final)
+  } else {
+    log("[Step 5] Warning: No cmp_label or label column found in scoring file")
   }
 }
+
+write_csv(deliverable_df, file.path(params$outdir, "final_deliverable.csv"))
+log("[Step 5] Complete: Deliverable File with Scoring Saved")
+
+# ------------------------- Done -------------------------
 log("[Pipeline] Execution complete.")
 quit(save = "no")
