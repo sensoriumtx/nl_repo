@@ -65,6 +65,8 @@ Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --pla
 
 ## 5. act_pipeline.r
 
+##### This query is bandwidth heavy and will take a bit of time to compile. The enrichment queries pull the full graph in abotu 5 different ways and there are 2 enrichment steps.
+
 ### act single string use case
 
 ```
