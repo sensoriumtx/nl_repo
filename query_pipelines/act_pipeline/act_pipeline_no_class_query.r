@@ -230,20 +230,24 @@ deliverable_df <- final_df %>%
 if (!is.null(params$scoring)) {
   scoring_df <- read_csv(params$scoring, show_col_types = FALSE)
 
-  # Determine scoring label column
-  scoring_col <- if ("cmp_label" %in% names(scoring_df)) "cmp_label" else if ("label" %in% names(scoring_df)) "label" else NULL
+  if (!"cmp" %in% colnames(scoring_df)) {
+    stop("[Step 5] Scoring file does not contain a 'cmp' column.")
+  }
 
-  if (!is.null(scoring_col)) {
-    log(paste("[Step 5] Merging scoring file on column:", scoring_col))
+  if ("cmp_label" %in% colnames(scoring_df)) {
+    log("[Step 5] Merging scoring file using 'cmp' and using 'cmp_label' to update labels")
 
-    scoring_df <- scoring_df %>% select(cmp, label_final = all_of(scoring_col))
+    scoring_df <- scoring_df %>% select(cmp, cmp_label_scoring = cmp_label)
 
     deliverable_df <- deliverable_df %>%
       left_join(scoring_df, by = "cmp") %>%
-      mutate(cmp_label = coalesce(label_final, cmp_label)) %>%
-      select(-label_final)
+      mutate(cmp_label = coalesce(cmp_label_scoring, cmp_label)) %>%
+      select(-cmp_label_scoring)
+
   } else {
-    log("[Step 5] Warning: No 'cmp_label' or 'label' column found in scoring file")
+    log("[Step 5] Scoring file contains 'cmp' but no 'cmp_label'; skipping label reassignment.")
+    deliverable_df <- deliverable_df %>%
+      left_join(scoring_df, by = "cmp")
   }
 }
 
