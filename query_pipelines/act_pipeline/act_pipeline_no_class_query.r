@@ -165,7 +165,7 @@ if (!file.exists(step3_outfile)) {
   cmp_act_df <- tibble(cmp = character(), act_cmp = character(), act_label_cmp = character())
 } else {
   cmp_act_df <- read_csv(step3_outfile, show_col_types = FALSE) %>%
-    rename(act_cmp = act, act_label_cmp = act_label) %>%
+    rename(act_cmp = act.x, act_label_cmp = act_label) %>%
     distinct(cmp, act_cmp, act_label_cmp) %>%
     drop_na(cmp)
   log(paste("[Step 3] Complete: Total Compound Activities:", nrow(cmp_act_df)))
