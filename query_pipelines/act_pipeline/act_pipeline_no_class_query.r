@@ -211,7 +211,7 @@ write_csv(final_df, file.path(params$outdir, "final_merged_output.csv"))
 log(paste("[Step 4] Complete: Final Merged File Rows:", nrow(final_df)))
 
 # ------------------------- Step 5: Deliverable File + Scoring -------------------------
-log("[Step 5] Aggregating and Scoring Final Output")
+log("[Step 5] Aggregating and Merging Final Output with Scoring")
 
 deliverable_df <- final_df %>%
   group_by(cmp) %>%
@@ -226,33 +226,22 @@ deliverable_df <- final_df %>%
     .groups = "drop"
   )
 
-# Apply scoring file if provided
 if (!is.null(params$scoring)) {
-  log("[Step 5] Reading scoring file for merge on 'cmp'")
+  log("[Step 5] Reading and merging scoring file on 'cmp'")
   scoring_df <- read_csv(params$scoring, show_col_types = FALSE)
 
-  if (!"cmp" %in% names(scoring_df)) {
-    log("[Step 5] Scoring file missing required 'cmp' column; skipping reassignment")
+  if ("cmp" %in% names(scoring_df)) {
+    scoring_df <- scoring_df %>% mutate(cmp = as.character(cmp))
+    deliverable_df <- deliverable_df %>% mutate(cmp = as.character(cmp)) %>%
+      left_join(scoring_df, by = "cmp")
+    log("[Step 5] Merge with scoring file successful")
   } else {
-    # Ensure columns are character and perform join
-    scoring_df <- scoring_df %>%
-      mutate(cmp = as.character(cmp),
-             label = if ("label" %in% names(.)) as.character(label) else NA_character_)
-
-    deliverable_df <- deliverable_df %>%
-      mutate(cmp = as.character(cmp), cmp_label = as.character(cmp_label)) %>%
-      left_join(scoring_df %>% select(cmp, label), by = "cmp") %>%
-      mutate(
-        cmp_label = if_else(is.na(cmp_label) | cmp_label == "", label, cmp_label)
-      ) %>%
-      select(-label)
-
-    log("[Step 5] Successfully merged scoring file using 'cmp' and applied fallback label reassignment")
+    log("[Step 5] Scoring file missing 'cmp' column — skipping merge")
   }
 }
 
 write_csv(deliverable_df, file.path(params$outdir, "final_deliverable.csv"))
-log("[Step 5] Complete: Deliverable File with Scoring Saved")
+log("[Step 5] Complete: Final Deliverable File Saved")
 
 # ------------------------- Done -------------------------
 log("[Pipeline] Execution complete.")
