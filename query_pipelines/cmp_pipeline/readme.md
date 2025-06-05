@@ -62,3 +62,13 @@ Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --pla
 ### batch_pln_pipeline.r
 
     This script will intake a massive list of plant labels and chunk them to fall below dropout ceilings.
+
+## 5. act_pipeline.r
+
+### act single string use case
+
+```
+Rscript nl_repo/query_pipelines/act_pipeline/act_pipeline_no_class_query.r --endpoint dev --acts "obesity" --filter_out_act /sensorium-research-kb/dev/data/filter/master_act_snomed_mapping_flag_negative_properties.csv --scoring /sensorium-research-kb/dev/data/query_output/activity/20250603_master_cmp_w_np.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250605_act_pipeline_single_string_test
+```
+
+### act multi string use case
