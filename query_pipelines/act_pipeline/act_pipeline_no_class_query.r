@@ -139,41 +139,31 @@ log(paste("[Step 2] Complete: Total Compound Mappings:", nrow(cmp_df)))
 log("[Step 3] Fetching Compound-Level Activity Annotations")
 
 if (is.null(params$acts) || nchar(params$acts) == 0) {
-  stop("[Step 3] No valid acts string found for compound enrichment.")
+  stop("[Step 3] No valid acts string provided")
 }
 
 step3_chunk_dir <- file.path(params$outdir, "step3_chunks")
 dir.create(step3_chunk_dir, showWarnings = FALSE, recursive = TRUE)
 
-# Split original acts string for chunked processing
-all_acts <- strsplit(params$acts, "\\|")[[1]]
-chunk_size <- 100
-act_chunks_cmp <- split(all_acts, ceiling(seq_along(all_acts) / chunk_size))
+step3_outfile <- file.path(step3_chunk_dir, "step3_cmp_enrichment.csv")
 
-run_cmp_act_chunk <- function(i) {
-  chunk_file <- file.path(step3_chunk_dir, paste0("step3_cmp_chunk_", i, ".csv"))
-  chunk_acts <- act_chunks_cmp[[i]]
-  cmd3 <- paste(
-    "Rscript scripts/pull_act_for_cmp_enrich.r",
-    "--endpoint", params$endpoint,
-    "--acts", shQuote(paste(chunk_acts, collapse = "|")),
-    "--filter_out_act", shQuote(params$filter),
-    "--out", shQuote(chunk_file)
-  )
-  log(paste("[Step 3][CMD]", cmd3))
-  system(cmd3)
-  return(chunk_file)
-}
+cmd3 <- paste(
+  "Rscript scripts/pull_act_for_cmp_enrich.r",
+  "--endpoint", params$endpoint,
+  "--acts", shQuote(params$acts),
+  "--filter_out_act", shQuote(params$filter),
+  "--out", shQuote(step3_outfile)
+)
 
-cmp_act_chunk_files <- parallel::mclapply(seq_along(act_chunks_cmp), run_cmp_act_chunk, mc.cores = workers)
-valid_cmp_chunks <- cmp_act_chunk_files[sapply(cmp_act_chunk_files, file.exists)]
+log(paste("[Step 3][CMD]", cmd3))
+system(cmd3)
 
-if (length(valid_cmp_chunks) == 0) {
-  log("[Step 3] Warning: No compound activity files found.")
+if (!file.exists(step3_outfile)) {
+  log("[Step 3] Warning: Compound activity enrichment file not found")
   cmp_act_df <- tibble(cmp = character(), act_cmp = character(), act_label_cmp = character())
 } else {
-  cmp_act_df <- map_dfr(valid_cmp_chunks, read_csv, show_col_types = FALSE) %>%
-    distinct(cmp, act_cmp = act.x, act_label_cmp = act_label) %>%
+  cmp_act_df <- read_csv(step3_outfile, show_col_types = FALSE) %>%
+    distinct(cmp, act_cmp = act, act_label_cmp = act_label) %>%
     drop_na(cmp)
 }
 log(paste("[Step 3] Complete: Total Compound Activities:", nrow(cmp_act_df)))
