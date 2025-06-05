@@ -226,38 +226,28 @@ deliverable_df <- final_df %>%
     .groups = "drop"
   )
 
-# Optional scoring label reassignment
+# Apply scoring file if provided
 if (!is.null(params$scoring)) {
+  log("[Step 5] Reading scoring file for merge on 'cmp'")
   scoring_df <- read_csv(params$scoring, show_col_types = FALSE)
 
-  if ("cmp" %in% names(scoring_df)) {
-    log("[Step 5] Merging scoring file using 'cmp' with fallback label reassignment")
-
-    # Prepare scoring file
+  if (!"cmp" %in% names(scoring_df)) {
+    log("[Step 5] Scoring file missing required 'cmp' column; skipping reassignment")
+  } else {
+    # Ensure columns are character and perform join
     scoring_df <- scoring_df %>%
-      mutate(
-        cmp = as.character(cmp),
-        cmp_label_scoring = if ("cmp_label" %in% names(.)) as.character(cmp_label) else NA_character_,
-        label_fallback = if ("label" %in% names(.)) as.character(label) else NA_character_
-      )
-
-    scoring_merge_df <- scoring_df %>% select(cmp, cmp_label_scoring, label_fallback)
+      mutate(cmp = as.character(cmp),
+             label = if ("label" %in% names(.)) as.character(label) else NA_character_)
 
     deliverable_df <- deliverable_df %>%
       mutate(cmp = as.character(cmp), cmp_label = as.character(cmp_label)) %>%
-      left_join(scoring_merge_df, by = "cmp") %>%
+      left_join(scoring_df %>% select(cmp, label), by = "cmp") %>%
       mutate(
-        cmp_label = case_when(
-          !is.na(cmp_label) & cmp_label != "" ~ cmp_label,
-          !is.na(cmp_label_scoring) & cmp_label_scoring != "" ~ cmp_label_scoring,
-          !is.na(label_fallback) & label_fallback != "" ~ label_fallback,
-          TRUE ~ cmp_label
-        )
+        cmp_label = if_else(is.na(cmp_label) | cmp_label == "", label, cmp_label)
       ) %>%
-      select(-cmp_label_scoring, -label_fallback)
+      select(-label)
 
-  } else {
-    log("[Step 5] Scoring file missing 'cmp' column; skipping label reassignment")
+    log("[Step 5] Successfully merged scoring file using 'cmp' and applied fallback label reassignment")
   }
 }
 
