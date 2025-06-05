@@ -74,3 +74,8 @@ Rscript nl_repo/query_pipelines/act_pipeline/act_pipeline_no_class_query.r --end
 ```
 
 ### act multi string use case
+
+```
+Rscript nl_repo/query_pipelines/act_pipeline/act_pipeline_no_class_query.r --endpoint dev --acts "obesity|anxiety" --filter_out_act /sensorium-research-kb/dev/data/filter/master_act_snomed_mapping_flag_negative_properties.csv --scoring /sensorium-research-kb/dev/data/query_output/activity/20250603_master_cmp_w_np.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250605_act_pipeline_multi_string_test
+```
+
