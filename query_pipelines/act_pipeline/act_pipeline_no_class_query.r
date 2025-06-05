@@ -226,16 +226,24 @@ deliverable_df <- final_df %>%
     .groups = "drop"
   )
 
+# If scoring file is provided, join by cmp
 if (!is.null(params$scoring)) {
   scoring_df <- read_csv(params$scoring, show_col_types = FALSE)
+
+  # Determine scoring label column
   scoring_col <- if ("cmp_label" %in% names(scoring_df)) "cmp_label" else if ("label" %in% names(scoring_df)) "label" else NULL
+
   if (!is.null(scoring_col)) {
+    log(paste("[Step 5] Merging scoring file on column:", scoring_col))
+
     scoring_df <- scoring_df %>% select(cmp, label_final = all_of(scoring_col))
-    deliverable_df <- deliverable_df %>% left_join(scoring_df, by = "cmp") %>%
-      mutate(cmp_label = coalesce(cmp_label, label_final)) %>%
+
+    deliverable_df <- deliverable_df %>%
+      left_join(scoring_df, by = "cmp") %>%
+      mutate(cmp_label = coalesce(label_final, cmp_label)) %>%
       select(-label_final)
   } else {
-    log("[Step 5] Warning: No cmp_label or label column found in scoring file")
+    log("[Step 5] Warning: No 'cmp_label' or 'label' column found in scoring file")
   }
 }
 
