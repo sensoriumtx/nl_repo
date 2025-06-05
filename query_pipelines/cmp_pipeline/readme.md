@@ -58,3 +58,7 @@ Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --pla
 ```
 Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --plants "Papaver somniferum|galium aparine" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250605_pln_pipeline_2_string_test
 ```
+
+### batch_pln_pipeline.r
+
+    This script will intake a massive list of plant labels and chunk them to fall below dropout ceilings.
