@@ -226,26 +226,38 @@ deliverable_df <- final_df %>%
     .groups = "drop"
   )
 
-# If scoring file is provided, join by cmp
 if (!is.null(params$scoring)) {
   scoring_df <- read_csv(params$scoring, show_col_types = FALSE)
 
-  if (!"cmp" %in% colnames(scoring_df)) {
+  if (!"cmp" %in% names(scoring_df)) {
     stop("[Step 5] Scoring file does not contain a 'cmp' column.")
   }
 
-  if ("cmp_label" %in% colnames(scoring_df)) {
-    log("[Step 5] Merging scoring file using 'cmp' and using 'label' to update labels")
+  has_cmp_label <- "cmp_label" %in% names(scoring_df)
+  has_label <- "label" %in% names(scoring_df)
 
-    scoring_df <- scoring_df %>% select(cmp, cmp_label_scoring = label)
+  if (has_cmp_label || has_label) {
+    log(paste0("[Step 5] Merging scoring file using 'cmp' with fallback label reassignment"))
+
+    scoring_df <- scoring_df %>%
+      select(cmp,
+             cmp_label_scoring = if (has_cmp_label) "cmp_label" else "cmp",  # fallback
+             label_fallback = if (has_label) "label" else "cmp")             # fallback
 
     deliverable_df <- deliverable_df %>%
       left_join(scoring_df, by = "cmp") %>%
-      mutate(cmp_label = coalesce(cmp_label_scoring, cmp_label)) %>%
-      select(-cmp_label_scoring)
+      mutate(
+        cmp_label = case_when(
+          !is.na(cmp_label) & cmp_label != "" ~ cmp_label,
+          !is.na(cmp_label_scoring) & cmp_label_scoring != "" ~ cmp_label_scoring,
+          !is.na(label_fallback) & label_fallback != "" ~ label_fallback,
+          TRUE ~ cmp_label
+        )
+      ) %>%
+      select(-cmp_label_scoring, -label_fallback)
 
   } else {
-    log("[Step 5] Scoring file contains 'cmp' but no 'label'; skipping label reassignment.")
+    log("[Step 5] Scoring file contains 'cmp' but no 'cmp_label' or 'label'; skipping label reassignment.")
     deliverable_df <- deliverable_df %>%
       left_join(scoring_df, by = "cmp")
   }
