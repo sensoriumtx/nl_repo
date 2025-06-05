@@ -92,8 +92,10 @@ chunk_output_files <- parLapply(cl, seq_along(act_chunks), function(i) {
 stopCluster(cl)
 
 plants_df <- map_dfr(chunk_output_files, read_csv, show_col_types = FALSE) %>%
-  distinct(pln, pln_label, act_pln = act, act_label_pln = act_label) %>%
+  rename(act_pln = act, act_label_pln = act_label) %>%
+  distinct(pln, pln_label, act_pln, act_label_pln) %>%
   drop_na(pln, pln_label)
+
 write_csv(plants_df, file.path(params$outdir, "step1_plants.csv"))
 log(paste("[Step 1] Complete: Total Plants:", nrow(plants_df)))
 
@@ -160,12 +162,12 @@ system(cmd3)
 
 if (!file.exists(step3_outfile)) {
   log("[Step 3] Warning: Compound activity enrichment file not found")
-  cmp_act_df <- tibble(cmp = character(), act_cmp = character(), act_label_cmp = character())
-} else {
+  
   cmp_act_df <- read_csv(step3_outfile, show_col_types = FALSE) %>%
-    distinct(cmp, act_cmp = act, act_label_cmp = act_label) %>%
-    drop_na(cmp)
-}
+  rename(act_cmp = act, act_label_cmp = act_label) %>%
+  distinct(cmp, act_cmp, act_label_cmp) %>%
+  drop_na(cmp)
+
 log(paste("[Step 3] Complete: Total Compound Activities:", nrow(cmp_act_df)))
 
 # ------------------------- Step 4: Merge All -------------------------
