@@ -123,7 +123,7 @@ cmd2 <- paste(
   "--plants", shQuote(joined_plants),
   "--out", shQuote(step2_outfile)
 )
-log(paste("[Step 2] CMD:", cmd2))
+log(paste("[Step 2]", cmd2))
 system(cmd2)
 
 if (!file.exists(step2_outfile)) {
@@ -157,7 +157,7 @@ cmd3 <- paste(
   "--out", shQuote(step3_outfile)
 )
 
-log(paste("[Step 3][CMD]", cmd3))
+log(paste("[Step 3]", cmd3))
 system(cmd3)
 
 if (!file.exists(step3_outfile)) {
