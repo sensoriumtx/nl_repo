@@ -25,7 +25,7 @@ Rscript nl_repo/query_pipelines/cmp_pipeline/smiles_pipeline.r --endpoint dev --
 Rscript nl_repo/query_pipelines/cmp_pipeline/smiles_pipeline.r --endpoint dev --smiles "COc1ccc2c(c1)O[C@H]1c3ccc(O)cc3OC[C@@H]21||COc1ccc2c(c1OC)C(=O)O[C@@H]2[C@H]1c2c(cc3c(c2OC)OCO3)CCN1C|" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_smile_pipeline_test
 ```
 
-## 3. Wildcard cmp use cases
+## 3. wildcard_cmp.r use cases
 
 ### Single wildcard
 
@@ -38,12 +38,23 @@ Rscript nl_repo/query_pipelines/cmp_pipeline/wildcard_cmp.r --endpoint dev --sea
 Rscript nl_repo/query_pipelines/cmp_pipeline/bulk_wildcard.r --endpoint dev --search "kavain|1S/C15H10O5/c1-6-2-8-12(10(17)3-6)15(20)13-9(14(8)19)4-7(16)5-11(13)18/h2-5,16-18H,1H3" --in_file /sensorium-research-kb/dev/data/query_output/activity/20250603_master_cmp_w_np.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_wildcard_multi_test 
 ```
 
-### Wildcard with blanks
+### Wildcard_ with blanks
     if there is blank outputs for compound activity associations the script will error and continue to find associations with plants and plant activities
 
 ```
 Rscript nl_repo/query_pipelines/cmp_pipeline/bulk_wildcard.r --endpoint dev --search "1s/c10h16/c1-7-6-8-4-5-9(7)10(8,2)3/h8-9h,1,4-6h2,2-3h3/t8-,9+/m0/s1 " --in_file /sensorium-research-kb/dev/data/query_output/activity/20250603_master_cmp_w_np.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_wildcard_single_test_only_cmpact_blanks
 ```
 
+## 4. pln_pipeline.r use cases
 
+### pln single string
 
+```
+Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --plants "Papaver somniferum" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250605_pln_pipeline_1_string_test
+```
+
+### pln multi string
+
+```
+Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --plants "Papaver somniferum|galium aparine" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250605_pln_pipeline_2_string_test
+```
