@@ -138,10 +138,17 @@ log(paste("[Step 2] Complete: Total Compound Mappings:", nrow(cmp_df)))
 # ------------------------- Step 3: Pull Activities for Compounds -------------------------
 log("[Step 3] Fetching Compound-Level Activity Annotations")
 
-act_chunks_cmp <- split(all_acts, ceiling(seq_along(all_acts) / chunk_size))
+if (is.null(params$acts) || nchar(params$acts) == 0) {
+  stop("[Step 3] No valid acts string found for compound enrichment.")
+}
 
 step3_chunk_dir <- file.path(params$outdir, "step3_chunks")
 dir.create(step3_chunk_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Split original acts string for chunked processing
+all_acts <- strsplit(params$acts, "\\|")[[1]]
+chunk_size <- 100
+act_chunks_cmp <- split(all_acts, ceiling(seq_along(all_acts) / chunk_size))
 
 run_cmp_act_chunk <- function(i) {
   chunk_file <- file.path(step3_chunk_dir, paste0("step3_cmp_chunk_", i, ".csv"))
@@ -153,6 +160,7 @@ run_cmp_act_chunk <- function(i) {
     "--filter_out_act", shQuote(params$filter),
     "--out", shQuote(chunk_file)
   )
+  log(paste("[Step 3][CMD]", cmd3))
   system(cmd3)
   return(chunk_file)
 }
@@ -161,7 +169,7 @@ cmp_act_chunk_files <- parallel::mclapply(seq_along(act_chunks_cmp), run_cmp_act
 valid_cmp_chunks <- cmp_act_chunk_files[sapply(cmp_act_chunk_files, file.exists)]
 
 if (length(valid_cmp_chunks) == 0) {
-  log("[Step 3] Warning: No compound activity files found")
+  log("[Step 3] Warning: No compound activity files found.")
   cmp_act_df <- tibble(cmp = character(), act_cmp = character(), act_label_cmp = character())
 } else {
   cmp_act_df <- map_dfr(valid_cmp_chunks, read_csv, show_col_types = FALSE) %>%
