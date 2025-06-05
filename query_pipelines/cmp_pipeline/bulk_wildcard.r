@@ -1,6 +1,6 @@
 # Nick Laskowski
 # Version 1.2
-# Wildcard Search to Semantic Association — Robust Special Character Support with Parallel Multi-Search
+# Wildcard Search to Semantic Association — Partial String query with Parallel Multi-Search
 
 #!/usr/bin/env Rscript
 
