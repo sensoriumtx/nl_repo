@@ -99,34 +99,40 @@ log(paste("[Step 1] Complete: Total Plants:", nrow(plants_df)))
 
 # ------------------------- Step 2: Pull Compounds for Plants -------------------------
 log("[Step 2] Fetching Compounds Associated with Identified Plants")
-plant_label_map <- plants_df %>% distinct(pln, pln_label)
-plant_chunks <- split(plant_label_map$pln_label, ceiling(seq_along(plant_label_map$pln_label) / 100))
-log(paste("Total Plant Labels:", nrow(plant_label_map)))
-log(paste("Total Chunks:", length(plant_chunks)))
 
-step2_chunk_dir <- file.path(params$outdir, "step2_chunks")
-dir.create(step2_chunk_dir, showWarnings = FALSE, recursive = TRUE)
+# Read the output of Step 1 to get plant labels
+step1_out <- file.path(params$outdir, "step1_plants.csv")
+if (!file.exists(step1_out)) stop("[Step 2] Missing step1_plants.csv")
 
-run_chunk <- function(i) {
-  chunk_file <- file.path(step2_chunk_dir, paste0("step2_cmp_chunk_", i, ".csv"))
-  chunk_plants <- paste(plant_chunks[[i]], collapse = "|")
-  cmd2 <- paste(
-    "Rscript scripts/pull_cmp_for_pln.r",
-    "--endpoint", params$endpoint,
-    "--plants", shQuote(chunk_plants),
-    "--out", shQuote(chunk_file)
-  )
-  system(cmd2)
-  return(chunk_file)
+plants_df <- read_csv(step1_out, show_col_types = FALSE) %>%
+  drop_na(pln, pln_label)
+
+unique_pln_labels <- unique(plants_df$pln_label)
+if (length(unique_pln_labels) == 0) {
+  stop("[Step 2] No valid plant labels found from Step 1 output.")
 }
 
-chunk_output_files <- parallel::mclapply(seq_along(plant_chunks), run_chunk, mc.cores = workers)
-valid_chunks <- chunk_output_files[sapply(chunk_output_files, file.exists)]
+joined_plants <- paste(unique_pln_labels, collapse = "|")
+step2_outfile <- file.path(params$outdir, "step2_cmp.csv")
 
-cmp_df <- map_dfr(valid_chunks, read_csv, show_col_types = FALSE) %>%
+cmd2 <- paste(
+  "Rscript scripts/pull_cmp_for_pln.r",
+  "--endpoint", params$endpoint,
+  "--plants", shQuote(joined_plants),
+  "--out", shQuote(step2_outfile)
+)
+log(paste("[Step 2] CMD:", cmd2))
+system(cmd2)
+
+if (!file.exists(step2_outfile)) {
+  stop("[Step 2] Failed to generate output file")
+}
+
+cmp_df <- read_csv(step2_outfile, show_col_types = FALSE) %>%
   distinct(pln, cmp, cmp_labels) %>%
-  inner_join(plant_label_map, by = "pln")
-write_csv(cmp_df, file.path(params$outdir, "step2_cmp.csv"))
+  inner_join(plants_df %>% distinct(pln, pln_label), by = "pln")
+
+write_csv(cmp_df, step2_outfile)
 log(paste("[Step 2] Complete: Total Compound Mappings:", nrow(cmp_df)))
 
 # ------------------------- Step 3: Pull Activities for Compounds -------------------------
