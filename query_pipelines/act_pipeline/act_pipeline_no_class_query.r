@@ -181,13 +181,28 @@ log(paste("[Step 3] Complete: Total Compound Activities:", nrow(cmp_act_df)))
 # ------------------------- Step 4: Merge All -------------------------
 log("[Step 4] Merging Plant, Compound, and Activity Data")
 
+# Read cmp_df and plants_df if not in memory
+if (!exists("cmp_df")) {
+  cmp_df <- read_csv(file.path(params$outdir, "step2_cmp.csv"), show_col_types = FALSE)
+}
+if (!exists("plants_df")) {
+  plants_df <- read_csv(file.path(params$outdir, "step1_plants.csv"), show_col_types = FALSE)
+}
+
+# Merge blocks
 final_df <- cmp_df %>%
   full_join(plants_df, by = "pln") %>%
   full_join(cmp_act_df, by = "cmp")
 
+# Patch to avoid logical() issue
 cmp_unmapped <- cmp_act_df %>%
   filter(!(cmp %in% cmp_df$cmp)) %>%
-  mutate(pln = NA, pln_label = NA, act_pln = NA, act_label_pln = NA)
+  mutate(
+    pln = as.character(NA),
+    pln_label = as.character(NA),
+    act_pln = as.character(NA),
+    act_label_pln = as.character(NA)
+  )
 
 final_df <- bind_rows(final_df, cmp_unmapped) %>%
   left_join(cmp_df %>% select(cmp, cmp_labels_source = cmp_labels) %>% distinct(), by = "cmp") %>%
