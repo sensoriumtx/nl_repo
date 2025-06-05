@@ -235,9 +235,9 @@ if (!is.null(params$scoring)) {
   }
 
   if ("cmp_label" %in% colnames(scoring_df)) {
-    log("[Step 5] Merging scoring file using 'cmp' and using 'cmp_label' to update labels")
+    log("[Step 5] Merging scoring file using 'cmp' and using 'label' to update labels")
 
-    scoring_df <- scoring_df %>% select(cmp, cmp_label_scoring = cmp_label)
+    scoring_df <- scoring_df %>% select(cmp, cmp_label_scoring = label)
 
     deliverable_df <- deliverable_df %>%
       left_join(scoring_df, by = "cmp") %>%
@@ -245,7 +245,7 @@ if (!is.null(params$scoring)) {
       select(-cmp_label_scoring)
 
   } else {
-    log("[Step 5] Scoring file contains 'cmp' but no 'cmp_label'; skipping label reassignment.")
+    log("[Step 5] Scoring file contains 'cmp' but no 'label'; skipping label reassignment.")
     deliverable_df <- deliverable_df %>%
       left_join(scoring_df, by = "cmp")
   }
