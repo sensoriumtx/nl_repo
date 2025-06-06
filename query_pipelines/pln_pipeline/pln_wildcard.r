@@ -1,6 +1,6 @@
 # Nick Laskowski
-# Version 1.2
-# Wildcard Search to Semantic Association — Partial String query with Parallel Multi-Search
+# Version 1.1
+# Wildcard Search to Semantic Association (PLN version) — Parallel Multi-Search and Fault Tolerance
 
 #!/usr/bin/env Rscript
 
@@ -40,18 +40,17 @@ parseArgs <- function(args) {
 }
 
 params <- parseArgs(args)
+if (is.null(params$search)) stop("--search must be provided (e.g., 'Panax ginseng|Withania somnifera')")
 if (is.null(params$outdir)) stop("--outdir must be specified")
 
 dir.create(params$outdir, showWarnings = FALSE, recursive = TRUE)
 log_file <- file.path(params$outdir, "pipeline_log.txt")
 cat("Pipeline Log\n==============\n", file = log_file)
 
-# ------------------------- Step 0: Wildcard-style CMP Identifier Search -------------------------
-log("[Step 0] Performing parallel wildcard search across all string fields in master file")
+# ------------------------- Step 0: Search PLNs -------------------------
+log("[Step 0] Performing parallel wildcard search across plant name fields")
 
 if (is.null(params$in_file)) stop("You must provide --in_file to search from a master CSV.")
-if (is.null(params$search)) stop("You must provide a search string using --search")
-
 search_terms <- str_split(params$search, "\\|")[[1]] %>% tolower() %>% str_trim()
 log(paste("Search terms:", paste(search_terms, collapse = " | ")))
 
@@ -61,8 +60,6 @@ char_cols <- master_df %>%
   select(where(is.character)) %>%
   names()
 
-log(paste("Character columns searched:", paste(char_cols, collapse = ", ")))
-
 match_term <- function(term) {
   master_df %>%
     filter(if_any(all_of(char_cols), ~ str_detect(tolower(.), fixed(term, ignore_case = TRUE))))
@@ -71,108 +68,124 @@ match_term <- function(term) {
 matched_list <- mclapply(search_terms, match_term, mc.cores = min(length(search_terms), detectCores()))
 all_matches <- bind_rows(matched_list) %>% distinct()
 
-if (nrow(all_matches) == 0) stop("No matches found for any search term.")
-
-resolved_cmp_file <- file.path(params$outdir, "step0_wildcard_matched_rows.csv")
-write_csv(all_matches, resolved_cmp_file)
-
-if (!"cmp" %in% colnames(all_matches)) stop("The column 'cmp' must be present in the matched data.")
-cmp_ids <- all_matches$cmp %>% unique() %>% na.omit() %>% sort() %>% paste(collapse = "|")
-if (cmp_ids == "") stop("No valid cmp IDs found in matched rows.")
-
-log(paste("[Step 0] Match complete. Found", nrow(all_matches), "total matched rows"))
-log(paste("Unique cmp IDs:", str_count(cmp_ids, "sen:")))
-log(paste("Matched rows saved to:", resolved_cmp_file))
-
-# ------------------------- Step 1: Pull Plants for CMP -------------------------
-log("[Step 1] Pulling plants associated with resolved compounds")
-
-plants_file <- file.path(params$outdir, "step1_plants_for_cmp.csv")
-plant_cmd <- paste(
-  "Rscript scripts/pull_plant_for_compound_ids.r",
-  "--endpoint", params$endpoint,
-  "--compound_activity_file", shQuote(resolved_cmp_file),
-  "--cmp_id_column", "cmp",
-  "--out", shQuote(plants_file)
-)
-system(plant_cmd)
-
-step1_has_data <- FALSE
-if (!file.exists(plants_file)) {
-  log("[Step 1] No plant file found. Writing blank file.")
-  write_csv(tibble(pln_label = character()), plants_file)
+resolved_pln_file <- file.path(params$outdir, "step0_wildcard_matched_plants.csv")
+if (nrow(all_matches) == 0) {
+  log("[Step 0] No matching rows found. Writing blank file.")
+  write_csv(tibble(pln_label = character()), resolved_pln_file)
+  cmp_ids <- ""
 } else {
-  plant_data <- read_csv(plants_file, show_col_types = FALSE)
-  if (nrow(plant_data) == 0) {
-    log("[Step 1] Plant file is empty. Writing blank file.")
-    write_csv(tibble(pln_label = character()), plants_file)
-  } else {
-    step1_has_data <- TRUE
-  }
+  write_csv(all_matches, resolved_pln_file)
+  if (!"pln_label" %in% colnames(all_matches)) stop("The column 'pln_label' must be present.")
+  log(paste("[Step 0] Match complete. Found", nrow(all_matches), "matched rows"))
 }
+
+# ------------------------- Step 1: Pull Compounds for PLN -------------------------
+log("[Step 1] Pulling compounds associated with matched plants")
+
+compounds_file <- file.path(params$outdir, "step1_compounds_for_pln.csv")
+step1_has_data <- FALSE
+
+if (nrow(all_matches) > 0) {
+  plants_joined <- all_matches$pln_label %>% unique() %>% na.omit() %>% paste(collapse = "|")
+  cmp_cmd <- paste(
+    "Rscript scripts/pull_cmp_for_pln.r",
+    "--endpoint", params$endpoint,
+    "--plants", shQuote(plants_joined),
+    "--out", shQuote(compounds_file)
+  )
+  system(cmp_cmd)
+  if (file.exists(compounds_file)) {
+    cmp_df <- read_csv(compounds_file, show_col_types = FALSE)
+    if (nrow(cmp_df) > 0) step1_has_data <- TRUE
+    else {
+      log("[Step 1] Compound file is empty. Writing blank.")
+      write_csv(tibble(), compounds_file)
+    }
+  } else {
+    log("[Step 1] Compound file not found. Writing blank.")
+    write_csv(tibble(), compounds_file)
+  }
+} else {
+  write_csv(tibble(), compounds_file)
+  log("[Step 1] Skipped due to no plant matches")
+}
+
 log("[Step 1] Complete")
 
-# ------------------------- Step 2: Pull Acts for CMP -------------------------
+# ------------------------- Step 2: Pull Activities for CMP -------------------------
 log("[Step 2] Pulling activities associated with compounds")
 
 cmp_acts_file <- file.path(params$outdir, "step2_acts_for_cmp.csv")
-act_cmd <- paste(
-  "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
-  "--endpoint", params$endpoint,
-  "--compound", shQuote(cmp_ids),
-  "--out", shQuote(cmp_acts_file)
-)
-system(act_cmd)
-
 step2_has_data <- FALSE
-if (!file.exists(cmp_acts_file)) {
-  log("[Step 2] No cmp activities file found. Writing blank file.")
-  write_csv(tibble(), cmp_acts_file)
-} else {
-  cmp_acts <- read_csv(cmp_acts_file, show_col_types = FALSE)
-  if (nrow(cmp_acts) == 0) {
-    log("[Step 2] CMP activities file is empty. Writing blank file.")
-    write_csv(tibble(), cmp_acts_file)
+
+if (step1_has_data) {
+  cmp_ids <- cmp_df$cmp %>% unique() %>% na.omit() %>% sort() %>% paste(collapse = "|")
+  if (cmp_ids != "") {
+    act_cmd <- paste(
+      "Rscript scripts/pull_acts_for_specific_cmp_ids.r",
+      "--endpoint", params$endpoint,
+      "--compound", shQuote(cmp_ids),
+      "--out", shQuote(cmp_acts_file)
+    )
+    system(act_cmd)
+
+    if (file.exists(cmp_acts_file)) {
+      cmp_acts <- read_csv(cmp_acts_file, show_col_types = FALSE)
+      if (nrow(cmp_acts) > 0) step2_has_data <- TRUE
+      else {
+        log("[Step 2] CMP activity file is empty. Writing blank.")
+        write_csv(tibble(), cmp_acts_file)
+      }
+    } else {
+      log("[Step 2] CMP activity file not found. Writing blank.")
+      write_csv(tibble(), cmp_acts_file)
+    }
   } else {
-    step2_has_data <- TRUE
+    write_csv(tibble(), cmp_acts_file)
+    log("[Step 2] No cmp IDs resolved.")
   }
+} else {
+  write_csv(tibble(), cmp_acts_file)
+  log("[Step 2] Skipped due to no compound output from Step 1")
 }
+
 log("[Step 2] Complete")
 
-# ------------------------- Step 3: Pull Acts for PLN -------------------------
-log("[Step 3] Pulling activities associated with plants")
+# ------------------------- Step 3: Pull Activities for PLN -------------------------
+log("[Step 3] Pulling activities directly associated with matched plants")
 
 plant_acts_file <- file.path(params$outdir, "step3_acts_for_pln.csv")
 
-if (step1_has_data && step2_has_data) {
-  plant_labels <- plant_data$pln_label %>% unique() %>% na.omit() %>% paste(collapse = "|")
+if (nrow(all_matches) > 0) {
+  plants_joined <- all_matches$pln_label %>% unique() %>% na.omit() %>% paste(collapse = "|")
   pln_act_cmd <- paste(
     "Rscript scripts/pull_acts_for_specific_pln.r",
     "--endpoint", params$endpoint,
-    "--plants", shQuote(plant_labels),
+    "--plants", shQuote(plants_joined),
     "--out", shQuote(plant_acts_file)
   )
   system(pln_act_cmd)
 
   if (!file.exists(plant_acts_file)) {
-    log("[Step 3] No plant activity file found. Writing blank file.")
+    log("[Step 3] Plant activity file not found. Writing blank.")
     write_csv(tibble(), plant_acts_file)
   } else {
-    plant_acts <- read_csv(plant_acts_file, show_col_types = FALSE)
-    if (nrow(plant_acts) == 0) {
-      log("[Step 3] Plant activity file is empty. Writing blank file.")
+    pln_acts <- read_csv(plant_acts_file, show_col_types = FALSE)
+    if (nrow(pln_acts) == 0) {
+      log("[Step 3] Plant activity file is empty. Writing blank.")
       write_csv(tibble(), plant_acts_file)
     }
   }
 } else {
-  log("[Step 3] Skipped because Step 1 or Step 2 has no data. Writing blank file.")
   write_csv(tibble(), plant_acts_file)
+  log("[Step 3] Skipped due to no plant matches")
 }
+
 log("[Step 3] Complete")
 
 # ------------------------- Completion -------------------------
 log("[Pipeline] Success. Outputs written to:")
-log(paste("  - Matched CMP rows:", resolved_cmp_file))
-log(paste("  - Plants for CMPs:", plants_file))
+log(paste("  - Matched PLN rows:", resolved_pln_file))
+log(paste("  - Compounds for PLNs:", compounds_file))
 log(paste("  - Activities for CMPs:", cmp_acts_file))
-log(paste("  - Activities for Plants:", plant_acts_file))
+log(paste("  - Activities for PLNs:", plant_acts_file))
