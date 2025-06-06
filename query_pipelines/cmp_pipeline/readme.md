@@ -1,4 +1,4 @@
-# Use Case Examples
+# Pipeline Use Case Examples
 
 ## 1. cmp_pipeline.r use cases
 
@@ -59,20 +59,22 @@ Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --pla
 Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --plants "Papaver somniferum|galium aparine" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250605_pln_pipeline_2_string_test
 ```
 
-### batch_pln_pipeline.r
+## 5. batch_pln_pipeline.r use cases
 
     This script will intake a massive list of plant labels and chunk them accross each step to fall below dropout ceilings. (best if needed for >100 specific pln_labels)
 ```
 Rscript nl_repo/query_pipelines/pln_pipeline/batch_pln_pipeline.r --endpoint dev --plants "galium aparine|ginko baloba|piper methysticum|Papaver somniferum" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250606_batch_pln_test1
 ```
 
-### Single Wildcard
+## 6. Pln Wildcard use cases
+
+### Single String Wildcard
 
 ```
 Rscript nl_repo/query_pipelines/pln_pipeline/pln_wildcard.r --endpoint dev --search "galium aparine" --in_file /sensorium-research-kb/dev/data/query_output/activity/20250606_master_pln_dev.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250606_pln_wildcard_string_input
 ```
 
-### Multiple Wildcard
+### Multiple String Wildcard
         if there is blank outputs for compound activity associations the script will error and continue to find associations with plants and plant activities
 
 ```
@@ -100,6 +102,3 @@ Rscript nl_repo/query_pipelines/act_pipeline/act_pipeline_no_class_query.r --end
 ```
 Rscript nl_repo/query_pipelines/act_pipeline/act_pipeline_no_class_query.r --endpoint dev _file /sensorium-research-kb/dev/data/query_output/testing/for_nick/act_files/20250605_act_file.csv --filter_out_act /sensorium-research-kb/dev/data/filter/master_vct_snomed_mapping_flag_negative_properties.csv --scoring /sensorium-research-kb/dev/data/query_output/activity/20250603_master_cmp_w_np.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250605_act_pipeline_act_file_test1
 ```
-
-
-
