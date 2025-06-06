@@ -42,7 +42,7 @@ message(paste0("endpoint: ", endpoint))
 
 # split cmps
 q = paste(sparql_prefix, paste0(
-"SELECT DISTINCT ?pln (GROUP_CONCAT(DISTINCT ?pln_label; SEPARATOR=";") AS ?pln_label) (GROUP_CONCAT(DISTINCT ?taxid; SEPARATOR=";") AS ?taxid)
+"SELECT DISTINCT ?pln (GROUP_CONCAT(DISTINCT ?pln_label; SEPARATOR=\";\") AS ?pln_label) (GROUP_CONCAT(DISTINCT ?taxid; SEPARATOR=\";\") AS ?taxid)
 WHERE {
   SELECT DISTINCT * WHERE {
     ?pln a sen:taxon .
