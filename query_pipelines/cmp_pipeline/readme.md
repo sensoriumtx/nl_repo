@@ -22,7 +22,7 @@ Rscript nl_repo/query_pipelines/cmp_pipeline/smiles_pipeline.r --endpoint dev --
 
 ### Multiple smiles strings
 ```
-Rscript nl_repo/query_pipelines/cmp_pipeline/smiles_pipeline.r --endpoint dev --smiles "COc1ccc2c(c1)O[C@H]1c3ccc(O)cc3OC[C@@H]21||COc1ccc2c(c1OC)C(=O)O[C@@H]2[C@H]1c2c(cc3c(c2OC)OCO3)CCN1C|" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_smile_pipeline_test
+Rscript nl_repo/query_pipelines/cmp_pipeline/smiles_pipeline.r --endpoint dev --smiles "COc1ccc2c(c1)O[C@H]1c3ccc(O)cc3OC[C@@H]21||COc1ccc2c(c1OC)C(=O)O[C@@H]2[C@H]1c2c(cc3c(c2OC)OCO3)CCN1C" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_smile_pipeline_test
 ```
 
 ## 3. wildcard_cmp.r use cases
@@ -61,7 +61,23 @@ Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --pla
 
 ### batch_pln_pipeline.r
 
-    This script will intake a massive list of plant labels and chunk them to fall below dropout ceilings.
+    This script will intake a massive list of plant labels and chunk them accross each step to fall below dropout ceilings. (best if needed for >100 specific pln_labels)
+```
+Rscript nl_repo/query_pipelines/pln_pipeline/batch_pln_pipeline.r --endpoint dev --plants "galium aparine|ginko baloba|piper methysticum|Papaver somniferum" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250606_batch_pln_test1
+```
+
+### Single Wildcard
+
+```
+Rscript nl_repo/query_pipelines/pln_pipeline/pln_wildcard.r --endpoint dev --search "galium aparine" --in_file /sensorium-research-kb/dev/data/query_output/activity/20250606_master_pln_dev.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250606_pln_wildcard_string_input
+```
+
+### Multiple Wildcard
+        if there is blank outputs for compound activity associations the script will error and continue to find associations with plants and plant activities
+
+```
+Rscript nl_repo/query_pipelines/pln_pipeline/pln_wildcard.r --endpoint dev --search "galium aparine|piper methysticum" --in_file /sensorium-research-kb/dev/data/query_output/activity/20250606_master_pln_dev.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250606_pln_wildcard_string_input
+```
 
 ## 5. act_pipeline.r
 
