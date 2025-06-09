@@ -113,14 +113,10 @@ Rscript nl_repo/query_pipelines/act_pipeline/act_pipeline_no_class_query.r \
   * `scripts/pull_cmp_for_pln.r`
   * `scripts/pull_act_for_cmp_enrich.r`
 
-Ensure these helper scripts exist and are accessible from the script’s root directory.
+Ensure this pipeline is run while in the knowledge-graph docker mounted directory these scripts are accessible from the script/ sub directory of the parent knowledge-graph directory.
+
+Aditionally, the SPARQL.r script(within knowledge-graph) is requred to run these scripts. As long as pipelines are run in /home/rstudio/knowledge-graph/ (or knowledge-graph mounted directory) the scripts will run seamlessly.
 
 ---
 
-## Contact
-
-For issues or extensions, please contact the Sensorium Knowledge Graph team.
-
----
-
-Let me know if you’d like a `README.md` file export or want this added to a documentation repo.
+Please log any issues and bugs found when rinning this script.
