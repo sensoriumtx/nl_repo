@@ -22,7 +22,7 @@ Each script extracts structured biological relationships from a Sensorium knowle
   * `pull_acts_for_specific_cmp_ids.r`
   * `pull_plant_for_compound_ids.r`
   * `pull_acts_for_specific_pln.r`
-  * (For SMILES only) `pull_act_for_smiles.r`
+  * `pull_act_for_smiles.r`
 
 ---
 
