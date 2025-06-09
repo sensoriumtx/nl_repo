@@ -186,4 +186,4 @@ These outputs represent progressive mappings across:
 
 ---
 
-Let me know if you'd like me to export this to separate README files or integrate it into a shared documentation structure.
+Please log any issues and bugs found when running this script and email bug description to nick.laskowski@sensorium.bio
