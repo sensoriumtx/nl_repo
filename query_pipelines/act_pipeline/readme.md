@@ -119,4 +119,4 @@ Aditionally, the SPARQL.r script(within knowledge-graph) is requred to run these
 
 ---
 
-Please log any issues and bugs found when rinning this script.
+Please log any issues and bugs found when running this script and email bug description to nick.laskowski@sensorium.bio
