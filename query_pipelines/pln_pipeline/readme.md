@@ -146,4 +146,4 @@ Each script creates a consistent set of outputs in the specified `--outdir`:
 
 ---
 
-Let me know if you’d like these saved as separate `README.md` files for each script, or merged into a documentation directory for deployment or collaboration.
+Please log any issues and bugs found when running this script and email bug description to nick.laskowski@sensorium.bio
