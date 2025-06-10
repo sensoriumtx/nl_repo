@@ -76,7 +76,8 @@ Rscript nl_repo/query_pipelines/pln_pipeline/pln_wildcard.r --endpoint dev --sea
 ```
 
 ### Multiple String Wildcard
-        if there is blank outputs for compound activity associations the script will error and continue to find associations with plants and plant activities
+        
+If there are blank outputs for compound activity associations the script will error and continue to find associations with plants and plant activities.
 
 ```
 Rscript nl_repo/query_pipelines/pln_pipeline/pln_wildcard.r --endpoint dev --search "galium aparine|piper methysticum" --in_file /sensorium-research-kb/dev/data/query_output/activity/20250606_master_pln_dev.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250606_pln_wildcard_string_input
