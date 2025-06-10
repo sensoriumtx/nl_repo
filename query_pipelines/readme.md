@@ -16,11 +16,13 @@ Rscript nl_repo/query_pipelines/cmp_pipeline/cmp_pipeline.r --endpoint dev --cmp
 ## 2. smiles_pipeline.r use cases
 
 ### Single smiles string
+
 ```
 Rscript nl_repo/query_pipelines/cmp_pipeline/smiles_pipeline.r --endpoint dev --smiles "COc1ccc2c(c1)O[C@H]1c3ccc(O)cc3OC[C@@H]21" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_smile_pipeline_test
 ```
 
 ### Multiple smiles strings
+
 ```
 Rscript nl_repo/query_pipelines/cmp_pipeline/smiles_pipeline.r --endpoint dev --smiles "COc1ccc2c(c1)O[C@H]1c3ccc(O)cc3OC[C@@H]21||COc1ccc2c(c1OC)C(=O)O[C@@H]2[C@H]1c2c(cc3c(c2OC)OCO3)CCN1C" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_smile_pipeline_test
 ```
@@ -39,7 +41,8 @@ Rscript nl_repo/query_pipelines/cmp_pipeline/bulk_wildcard.r --endpoint dev --se
 ```
 
 ### Wildcard_ with blanks
-    if there is blank outputs for compound activity associations the script will error and continue to find associations with plants and plant activities
+
+If there are blank outputs for compound activity associations the script will error and continue to find associations with plants and plant activities.
 
 ```
 Rscript nl_repo/query_pipelines/cmp_pipeline/bulk_wildcard.r --endpoint dev --search "1s/c10h16/c1-7-6-8-4-5-9(7)10(8,2)3/h8-9h,1,4-6h2,2-3h3/t8-,9+/m0/s1 " --in_file /sensorium-research-kb/dev/data/query_output/activity/20250603_master_cmp_w_np.csv --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250604_wildcard_single_test_only_cmpact_blanks
