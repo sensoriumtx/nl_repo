@@ -62,6 +62,7 @@ Rscript nl_repo/query_pipelines/pln_pipeline/pln_pipeline.r --endpoint dev --pla
 ## 5. batch_pln_pipeline.r use cases
 
 This script will intake a massive list of plant labels and chunk them accross each step to fall below dropout ceilings. (best if needed for >100 specific pln_labels)
+
 ```
 Rscript nl_repo/query_pipelines/pln_pipeline/batch_pln_pipeline.r --endpoint dev --plants "galium aparine|ginko baloba|piper methysticum|Papaver somniferum" --outdir /sensorium-research-kb/dev/data/query_output/testing/for_nick/20250606_batch_pln_test1
 ```
